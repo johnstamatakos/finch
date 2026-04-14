@@ -16,6 +16,28 @@
   z-index: 10;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-save {
+  background: white;
+  color: #6366f1;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-save:hover {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+
 .topbar-left {
   display: flex;
   align-items: center;

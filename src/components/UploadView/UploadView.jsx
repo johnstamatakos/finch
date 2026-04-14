@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import './UploadView.css';
 
-export default function UploadView({ onAnalyze }) {
+export default function UploadView({ onAnalyze, showBack, onBack }) {
   const [file, setFile] = useState(null);
   const [income, setIncome] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -33,6 +33,9 @@ export default function UploadView({ onAnalyze }) {
 
   return (
     <div className="upload-page">
+      {showBack && (
+        <button className="upload-back-btn" onClick={onBack}>← Back to statements</button>
+      )}
       <div className="upload-header">
         <div className="logo-mark">$</div>
         <h1>Budget Buddy</h1>

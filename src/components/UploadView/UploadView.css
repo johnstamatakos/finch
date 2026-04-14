@@ -6,7 +6,24 @@
   justify-content: center;
   padding: 40px 20px;
   background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+  position: relative;
 }
+
+.upload-back-btn {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  background: none;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #374151;
+  font-weight: 500;
+  transition: border-color 0.15s;
+}
+.upload-back-btn:hover { border-color: #9ca3af; }
 
 .upload-header {
   text-align: center;

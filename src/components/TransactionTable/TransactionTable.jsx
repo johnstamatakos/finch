@@ -1,12 +1,22 @@
 import { useState } from 'react';
 import { CATEGORIES } from '../../constants/categories.js';
 import { formatCurrency, formatDate } from '../../utils/formatters.js';
+import SaveModal from '../SaveModal/SaveModal.jsx';
 import './TransactionTable.css';
 
-export default function TransactionTable({ transactions, onUpdate, onViewDashboard, onBack }) {
+export default function TransactionTable({
+  transactions,
+  onUpdate,
+  onViewDashboard,
+  onBack,
+  onSave,        // (name) => void — called to save/update the statement
+  statementName, // string if viewing an existing saved statement
+  defaultSaveName, // suggested name for the save modal
+}) {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
-  const [filterType, setFilterType] = useState('All'); // All | Expenses | Deposits | Recurring
+  const [filterType, setFilterType] = useState('All');
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   const expenses = transactions.filter((t) => !t.isDeposit);
   const deposits = transactions.filter((t) => t.isDeposit);
@@ -22,14 +32,39 @@ export default function TransactionTable({ transactions, onUpdate, onViewDashboa
     return true;
   });
 
+  const handleSaveClick = () => setShowSaveModal(true);
+  const handleSaveConfirm = (name) => {
+    setShowSaveModal(false);
+    onSave(name);
+  };
+
   return (
     <div className="table-page">
+      {showSaveModal && (
+        <SaveModal
+          defaultName={statementName || defaultSaveName || ''}
+          onSave={handleSaveConfirm}
+          onCancel={() => setShowSaveModal(false)}
+        />
+      )}
+
       <div className="table-topbar">
         <div className="topbar-left">
-          <button className="btn-ghost" onClick={onBack}>← New Upload</button>
-          <h1>Transactions <span className="count-badge">{transactions.length}</span></h1>
+          <button className="btn-ghost" onClick={onBack}>← Back</button>
+          {statementName ? (
+            <h1>{statementName} <span className="count-badge">{transactions.length}</span></h1>
+          ) : (
+            <h1>Transactions <span className="count-badge">{transactions.length}</span></h1>
+          )}
         </div>
-        <button className="btn-primary" onClick={onViewDashboard}>View Dashboard →</button>
+        <div className="topbar-right">
+          {onSave && (
+            <button className="btn-save" onClick={handleSaveClick}>
+              {statementName ? 'Save Changes' : 'Save Statement'}
+            </button>
+          )}
+          <button className="btn-primary" onClick={onViewDashboard}>View Dashboard →</button>
+        </div>
       </div>
 
       <div className="summary-row">
