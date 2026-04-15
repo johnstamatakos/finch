@@ -2,7 +2,7 @@
   padding: 28px 32px;
 }
 
-/* Empty state */
+/* ── Empty state ────────────────────────────────────────────────── */
 .stmts-empty {
   display: flex;
   flex-direction: column;
@@ -13,30 +13,20 @@
 }
 .stmts-empty-icon { font-size: 48px; margin-bottom: 16px; }
 .stmts-empty h2 { font-size: 20px; font-weight: 700; color: var(--text-1); margin: 0 0 8px; }
-.stmts-empty p { color: var(--text-2); font-size: 14px; margin: 0 0 20px; }
+.stmts-empty p  { color: var(--text-2); font-size: 14px; margin: 0 0 20px; }
 
-.stmts-upload-btn {
-  background: var(--accent-btn);
-  color: white;
-  border: none;
-  border-radius: 9px;
-  padding: 10px 22px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
-}
-.stmts-upload-btn:hover {
-  background: var(--accent-btn-hover);
-  box-shadow: 0 0 16px var(--accent-glow);
-}
-
-/* Header */
+/* ── Header ─────────────────────────────────────────────────────── */
 .stmts-header {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 20px;
+}
+.stmts-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 1;
 }
 .stmts-header h1 {
   font-size: 20px;
@@ -50,110 +40,227 @@
   color: var(--text-3);
 }
 
-/* Grid */
-.stmts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+/* ── Upload button ──────────────────────────────────────────────── */
+.stmts-upload-btn {
+  background: var(--accent-btn);
+  color: white;
+  border: none;
+  border-radius: 9px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.stmts-upload-btn:hover {
+  background: var(--accent-btn-hover);
+  box-shadow: 0 0 14px var(--accent-glow);
 }
 
-/* Card */
-.stmt-card {
-  background: var(--surface);
+/* ── Table ──────────────────────────────────────────────────────── */
+.stmts-table-wrap {
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 20px 22px;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.stmt-card:hover {
-  border-color: var(--accent-glow);
-  box-shadow: 0 0 24px rgba(129, 140, 248, 0.12);
+  overflow: hidden;
 }
 
-.stmt-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
+.stmts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
 }
 
-.stmt-period {
+.stmts-table thead th {
+  background: var(--surface-2);
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.stmts-col-num { text-align: right !important; }
+
+.stmts-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.1s;
+}
+.stmts-table tbody tr:last-child { border-bottom: none; }
+.stmts-table tbody tr:hover { background: var(--surface-2); }
+
+.stmts-table tbody td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+.stmts-period {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--accent);
+  white-space: nowrap;
+  width: 90px;
 }
 
-.stmt-delete {
-  background: none;
-  border: none;
-  font-size: 18px;
-  color: var(--text-3);
-  cursor: pointer;
-  line-height: 1;
-  padding: 0 2px;
-  transition: color 0.1s;
-}
-.stmt-delete:hover { color: var(--negative); }
+/* Rename inline */
+.stmts-name-cell { min-width: 160px; }
 
-.stmt-name {
-  font-size: 15px;
-  font-weight: 700;
+.stmts-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--text-1);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.12s;
 }
+.stmts-name:hover { background: var(--surface-3); }
 
-.stmt-date {
+.stmts-edit-hint {
   font-size: 12px;
   color: var(--text-3);
-  margin-bottom: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
+.stmts-name:hover .stmts-edit-hint { opacity: 1; }
 
-.stmt-metrics {
+.stmts-rename-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 4px;
+  gap: 6px;
 }
 
-.stmt-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stmt-metric-val {
-  font-size: 14px;
-  font-weight: 700;
+.stmts-rename-input {
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 13px;
   color: var(--text-1);
+  background: var(--surface-2);
+  outline: none;
+  flex: 1;
+  min-width: 0;
 }
-.stmt-metric-val.red   { color: var(--negative); }
-.stmt-metric-val.green { color: var(--positive); }
 
-.stmt-metric-lbl {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.stmts-rename-save {
+  background: var(--accent-btn);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stmts-rename-save:hover { opacity: 0.85; }
+
+.stmts-rename-cancel {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.stmts-rename-cancel:hover { color: var(--text-1); }
+
+/* Data cells */
+.stmts-expenses { color: var(--negative); font-weight: 600; }
+.stmts-deposits { color: var(--positive); font-weight: 600; }
+.stmts-txcount  { color: var(--text-2); }
+.stmts-saved    { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+
+.stmts-actions { text-align: right; width: 80px; }
+
+.stmts-delete-btn {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.stmts-delete-btn:hover { border-color: var(--negative); color: var(--negative); }
+
+/* ── Delete confirmation modal ───────────────────────────────────── */
+.stmts-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.stmts-confirm {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 32px;
+  width: min(420px, 90vw);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.stmts-confirm-msg {
+  font-size: 14px;
+  color: var(--text-1);
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+.stmts-confirm-sub {
+  font-size: 12px;
   color: var(--text-3);
 }
 
-.stmt-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--border-subtle);
+.stmts-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
+
+.stmts-confirm-cancel {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.stmts-confirm-cancel:hover { border-color: var(--text-2); }
+
+.stmts-confirm-delete {
+  background: var(--negative);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.stmts-confirm-delete:hover { opacity: 0.85; }
 
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .stmts-page { padding: 16px; }
   .stmts-header { flex-wrap: wrap; }
-  .stmts-grid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 420px) {
-  .stmt-card { padding: 16px; }
+  .stmts-upload-btn { width: 100%; text-align: center; }
+  .stmts-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .stmts-table { min-width: 600px; }
 }

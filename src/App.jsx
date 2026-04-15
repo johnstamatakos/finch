@@ -24,7 +24,7 @@ export default function App() {
 
   // ── Upload + Review flow ─────────────────────────────────────────────────
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [reviewData, setReviewData] = useState(null); // { transactions, defaultName }
+  const [reviewData, setReviewData] = useState(null); // { groups: [{ ym, name, transactions }] }
 
   // ── Transaction filters ───────────────────────────────────────────────────
   const [txFilters, setTxFilters] = useState({
@@ -73,10 +73,8 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Analysis failed. Please try again.');
 
-      setReviewData({
-        transactions: data.transactions,
-        defaultName: suggestName(data.transactions),
-      });
+      // Split into per-month groups automatically
+      setReviewData({ groups: splitByMonth(data.transactions) });
     } catch (err) {
       setError(err.message);
       setUploadOpen(true); // reopen so they can retry
@@ -85,30 +83,59 @@ export default function App() {
     }
   };
 
-  // ── Save new statement from drawer ────────────────────────────────────────
-  const handleSaveNew = async (name, transactions) => {
+  // ── Save new statement(s) from review modal ───────────────────────────────
+  // groups = [{ name, transactions }]  (always an array, even for single month)
+  const handleSaveNew = async (groups) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/statements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, monthlyIncome: 0, transactions }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed.');
+      let savedCount = 0;
+      let skippedCount = 0;
+      let totalDupes = 0;
+
+      // Save sequentially so fingerprint dedup works correctly across months
+      for (const group of groups) {
+        const res = await fetch('/api/statements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: group.name, monthlyIncome: 0, transactions: group.transactions }),
+        });
+        const data = await res.json();
+        if (res.status === 409) {
+          skippedCount++;
+        } else if (!res.ok) {
+          throw new Error(data.error || 'Save failed.');
+        } else {
+          savedCount++;
+          totalDupes += data.duplicateCount || 0;
+        }
+      }
 
       setReviewData(null);
       await refreshStatements();
       setPage('dashboard');
-      if (data.duplicateCount > 0) {
-        setError(`Saved. ${data.duplicateCount} duplicate transaction${data.duplicateCount === 1 ? '' : 's'} already in another statement were skipped.`);
+
+      if (skippedCount > 0 || totalDupes > 0) {
+        let msg = savedCount > 0 ? `Saved ${savedCount} statement${savedCount !== 1 ? 's' : ''}.` : '';
+        if (skippedCount > 0) msg += ` ${skippedCount} month${skippedCount !== 1 ? 's' : ''} already existed and were skipped.`;
+        if (totalDupes > 0) msg += ` ${totalDupes} duplicate transaction${totalDupes !== 1 ? 's' : ''} skipped.`;
+        setError(msg.trim());
       }
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ── Rename statement ──────────────────────────────────────────────────────
+  const handleRename = async (id, newName) => {
+    const res = await fetch(`/api/statements/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (res.ok) await refreshStatements();
   };
 
   // ── Delete statement ──────────────────────────────────────────────────────
@@ -301,8 +328,8 @@ export default function App() {
         {page === 'statements' && (
           <StatementsPage
             statements={sortedStatements}
-            onSelect={(id) => { setSelectedId(id); setPage('transactions'); }}
             onDelete={handleDelete}
+            onRename={handleRename}
             onUpload={() => setUploadOpen(true)}
           />
         )}
@@ -319,8 +346,7 @@ export default function App() {
 
       {reviewData && (
         <ReviewModal
-          initialTransactions={reviewData.transactions}
-          defaultName={reviewData.defaultName}
+          groups={reviewData.groups}
           allCategories={allCategories}
           onCreateCategory={addCategory}
           onSave={handleSaveNew}
@@ -345,26 +371,29 @@ function SidebarSection({ label, children }) {
   );
 }
 
-// Suggest a statement name from transaction dates
-function suggestName(transactions) {
-  const MONTHS = ['January','February','March','April','May','June',
-    'July','August','September','October','November','December'];
-  const counts = {};
+const MONTHS = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+];
+
+function ymToName(ym) {
+  if (!ym || ym === 'no-date') return 'Unknown Month';
+  const [y, m] = ym.split('-').map(Number);
+  return (y && m) ? `${MONTHS[m - 1]} ${y}` : ym;
+}
+
+/**
+ * Split a flat transaction array into per-month groups, sorted chronologically.
+ * Returns [{ ym, name, transactions }]
+ */
+function splitByMonth(transactions) {
+  const map = new Map();
   for (const t of transactions) {
-    if (t.date && /^\d{4}-\d{2}/.test(t.date)) {
-      const ym = t.date.slice(0, 7);
-      counts[ym] = (counts[ym] || 0) + 1;
-    }
+    const ym = t.date?.slice(0, 7) || 'no-date';
+    if (!map.has(ym)) map.set(ym, []);
+    map.get(ym).push(t);
   }
-  const keys = Object.keys(counts);
-  if (keys.length === 0) return '';
-  const total = Object.values(counts).reduce((s, n) => s + n, 0);
-  const best = keys.sort((a, b) => counts[b] - counts[a])[0];
-  if (counts[best] / total >= 0.4) {
-    const [y, m] = best.split('-').map(Number);
-    return `${MONTHS[m - 1]} ${y}`;
-  }
-  const earliest = keys.sort()[0];
-  const [y, m] = earliest.split('-').map(Number);
-  return `${MONTHS[m - 1]} ${y}`;
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([ym, txns]) => ({ ym, name: ymToName(ym), transactions: txns }));
 }

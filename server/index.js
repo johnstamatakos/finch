@@ -12,6 +12,7 @@ import {
   getStatement,
   updateStatement,
   deleteStatement,
+  patchStatement,
   patchTransaction,
   getAllFingerprints,
 } from './utils/statementStore.js';
@@ -117,6 +118,24 @@ app.put('/api/statements/:id', async (req, res) => {
   } catch (err) {
     if (err.message === 'Invalid statement id.') return res.status(400).json({ error: err.message });
     console.error('Error in PUT /api/statements/:id:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Patch statement metadata (e.g. rename)
+app.patch('/api/statements/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name (string) is required.' });
+    }
+    const updated = await patchStatement(req.params.id, { name: name.trim() });
+    if (!updated) return res.status(404).json({ error: 'Statement not found.' });
+    const { transactions: _tx, ...meta } = updated;
+    return res.json(meta);
+  } catch (err) {
+    if (err.message === 'Invalid statement id.') return res.status(400).json({ error: err.message });
+    console.error('Error in PATCH /api/statements/:id:', err.message);
     return res.status(500).json({ error: err.message });
   }
 });

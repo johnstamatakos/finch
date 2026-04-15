@@ -96,6 +96,26 @@ export async function updateStatement(id, { name, monthlyIncome, transactions })
 }
 
 /**
+ * Patch top-level metadata on a statement (e.g. name).
+ * Does NOT recalculate summary — suitable for non-financial fields.
+ */
+export async function patchStatement(id, patch) {
+  validateId(id);
+  await ensureDataDir();
+  const path = join(DATA_DIR, `${id}.json`);
+  if (!existsSync(path)) return null;
+  const stmt = JSON.parse(await readFile(path, 'utf8'));
+  const ALLOWED = ['name']; // whitelist patchable fields
+  const updates = {};
+  for (const key of ALLOWED) {
+    if (patch[key] !== undefined) updates[key] = patch[key];
+  }
+  const updated = { ...stmt, ...updates };
+  await writeFile(path, JSON.stringify(updated, null, 2));
+  return updated;
+}
+
+/**
  * Patch individual fields on a single transaction (e.g. flagged).
  * Does NOT recalculate statement summary — suitable for non-financial fields.
  */
