@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  LineChart, Line,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { CATEGORIES, CATEGORY_COLORS } from '../../constants/categories.js';
@@ -8,10 +9,26 @@ import { formatCurrency } from '../../utils/formatters.js';
 import InsightsCard from '../../components/InsightsCard/InsightsCard.jsx';
 import './DashboardPage.css';
 
+// Match stat card colors
+const COLOR_EXPENSES = '#f87171'; // var(--negative)
+const COLOR_INCOME   = '#34d399'; // var(--positive)
+
+const TOOLTIP_STYLE = {
+  borderRadius: '10px',
+  border: '1px solid #2d3a52',
+  fontSize: 12,
+  background: '#1c2338',
+  color: '#f1f5f9',
+};
+
+const AXIS_TICK  = { fontSize: 11, fill: '#4b5675' };
+const AXIS_LINE  = { stroke: '#2d3a52' };
+const GRID_STYLE = { strokeDasharray: '3 3', stroke: '#1e2a3f' };
+
 export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }) {
   const selected = selectedId ? statements.find((s) => s.id === selectedId) : null;
 
-  // ── Aggregate (All Time) ──────────────────────────────────────────────────
+  // ── Sorted for trend charts ───────────────────────────────────────────────
   const sorted = useMemo(
     () => [...statements].sort((a, b) => {
       const aKey = (a.period?.year ?? 0) * 12 + (a.period?.month ?? 0);
@@ -21,6 +38,7 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
     [statements]
   );
 
+  // ── Monthly trend bar data ────────────────────────────────────────────────
   const barData = useMemo(
     () => sorted.map((s) => ({
       label: s.period?.label ?? s.name,
@@ -30,6 +48,35 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
     [sorted]
   );
 
+  // ── Category trend line data (top 6 categories by total spend) ────────────
+  const { catTrendData, trendCategories } = useMemo(() => {
+    if (sorted.length < 2) return { catTrendData: [], trendCategories: [] };
+
+    // Collect all categories and their totals across all months
+    const totals = {};
+    for (const s of sorted) {
+      for (const [cat, amt] of Object.entries(s.summary?.byCategory ?? {})) {
+        totals[cat] = (totals[cat] || 0) + amt;
+      }
+    }
+
+    // Top 6 by total spend
+    const trendCategories = Object.keys(totals)
+      .sort((a, b) => totals[b] - totals[a])
+      .slice(0, 6);
+
+    const catTrendData = sorted.map((s) => {
+      const point = { label: s.period?.label ?? s.name };
+      for (const cat of trendCategories) {
+        point[cat] = parseFloat((s.summary?.byCategory?.[cat] ?? 0).toFixed(2));
+      }
+      return point;
+    });
+
+    return { catTrendData, trendCategories };
+  }, [sorted]);
+
+  // ── Category totals for pie / breakdown ───────────────────────────────────
   const { categoryData, totalExpenses, totalIncome } = useMemo(() => {
     const source = selected ? [selected] : statements;
     const totals = {};
@@ -53,11 +100,10 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
   }, [statements, selected]);
 
   const net = totalIncome - totalExpenses;
-  const spendingPct = totalIncome > 0 ? Math.min(100, (totalExpenses / totalIncome) * 100) : 0;
-
   const hasBudget = budgetGoal > 0;
   const budgetLeft = budgetGoal - totalExpenses;
-  const budgetPct = hasBudget ? Math.min(100, (totalExpenses / budgetGoal) * 100) : 0;
+
+  const showTrends = !selected && sorted.length > 1;
 
   if (statements.length === 0) {
     return (
@@ -71,12 +117,12 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
     );
   }
 
-  // Statements to pass to InsightsCard: selected one or all
   const insightStatements = selected ? [selected] : statements;
 
   return (
     <div className="dash-page">
-      {/* Stat cards */}
+
+      {/* ── Stat cards ──────────────────────────────────────────────────── */}
       <div className="dash-stats">
         <div className="dash-stat">
           <span className="dash-stat-label">Total Spent</span>
@@ -107,66 +153,92 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
         )}
       </div>
 
-      {/* Spending bar — budget if set, otherwise vs income */}
-      {(hasBudget || totalIncome > 0) && (
-        <div className="dash-spend-card">
-          <div className="dash-spend-header">
-            <span>{hasBudget ? 'Spending vs Budget' : 'Spending vs Income'}</span>
-            <span className={(hasBudget ? budgetPct : spendingPct) > 100 ? 'over' : ''}>
-              {(hasBudget ? budgetPct : spendingPct).toFixed(0)}%
-            </span>
-          </div>
-          <div className="dash-spend-track">
-            <div
-              className={`dash-spend-fill ${
-                (hasBudget ? budgetPct : spendingPct) > 100 ? 'over' :
-                (hasBudget ? budgetPct : spendingPct) > 80 ? 'warn' : ''
-              }`}
-              style={{ width: `${Math.min(100, hasBudget ? budgetPct : spendingPct)}%` }}
-            />
-          </div>
-          <div className="dash-spend-labels">
-            <span>{formatCurrency(totalExpenses)} spent</span>
-            <span>{formatCurrency(hasBudget ? budgetGoal : totalIncome)} {hasBudget ? 'budget' : 'income'}</span>
-          </div>
-        </div>
-      )}
-
-      {/* AI Insights */}
+      {/* ── AI Insights ─────────────────────────────────────────────────── */}
       <InsightsCard statements={insightStatements} />
 
-      {/* Monthly trend — only when showing all time */}
-      {!selected && statements.length > 1 && (
-        <div className="dash-card">
-          <h2>Monthly Trend</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={barData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3f" />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#4b5675' }} axisLine={{ stroke: '#2d3a52' }} tickLine={false} />
-              <YAxis
-                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
-                tick={{ fontSize: 11, fill: '#4b5675' }}
-                width={44}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                formatter={(value, name) => [formatCurrency(value), name === 'expenses' ? 'Expenses' : 'Income']}
-                contentStyle={{ borderRadius: '10px', border: '1px solid #2d3a52', fontSize: 12, background: '#1c2338', color: '#f1f5f9' }}
-                cursor={{ fill: 'rgba(129,140,248,0.06)' }}
-              />
-              <Bar dataKey="income" fill="#0d9488" radius={[4, 4, 0, 0]} name="income" />
-              <Bar dataKey="expenses" fill="#818cf8" radius={[4, 4, 0, 0]} name="expenses" />
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="dash-legend">
-            <span><span className="dash-legend-dot" style={{ background: '#818cf8' }} /> Expenses</span>
-            <span><span className="dash-legend-dot" style={{ background: '#0d9488' }} /> Income</span>
+      {/* ── Monthly trend + Category trend (side by side, all-time only) ── */}
+      {showTrends && (
+        <div className="dash-columns">
+
+          {/* Bar chart: expenses vs income per month */}
+          <div className="dash-card">
+            <h2>Monthly Trend</h2>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={barData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid {...GRID_STYLE} />
+                <XAxis dataKey="label" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
+                <YAxis
+                  tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                  tick={AXIS_TICK}
+                  width={44}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  formatter={(value, name) => [formatCurrency(value), name === 'expenses' ? 'Expenses' : 'Income']}
+                  contentStyle={TOOLTIP_STYLE}
+                  cursor={{ fill: 'rgba(129,140,248,0.06)' }}
+                />
+                <Bar dataKey="income"   fill={COLOR_INCOME}   radius={[4, 4, 0, 0]} name="income" />
+                <Bar dataKey="expenses" fill={COLOR_EXPENSES} radius={[4, 4, 0, 0]} name="expenses" />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="dash-legend">
+              <span><span className="dash-legend-dot" style={{ background: COLOR_EXPENSES }} /> Expenses</span>
+              <span><span className="dash-legend-dot" style={{ background: COLOR_INCOME }} /> Income</span>
+            </div>
+          </div>
+
+          {/* Line chart: category spending per month */}
+          <div className="dash-card">
+            <h2>Category Trends</h2>
+            {catTrendData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={catTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid {...GRID_STYLE} />
+                    <XAxis dataKey="label" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
+                    <YAxis
+                      tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                      tick={AXIS_TICK}
+                      width={44}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(v, name) => [formatCurrency(v), name]}
+                      contentStyle={TOOLTIP_STYLE}
+                    />
+                    {trendCategories.map((cat) => (
+                      <Line
+                        key={cat}
+                        type="monotone"
+                        dataKey={cat}
+                        stroke={CATEGORY_COLORS[cat] || '#94a3b8'}
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: CATEGORY_COLORS[cat] || '#94a3b8', strokeWidth: 0 }}
+                        activeDot={{ r: 5, strokeWidth: 0 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+                <div className="dash-legend dash-legend-wrap">
+                  {trendCategories.map((cat) => (
+                    <span key={cat}>
+                      <span className="dash-legend-dot" style={{ background: CATEGORY_COLORS[cat] }} />
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="dash-empty-chart">No category data yet</p>
+            )}
           </div>
         </div>
       )}
 
-      {/* Category columns */}
+      {/* ── Category pie + breakdown ─────────────────────────────────────── */}
       <div className="dash-columns">
         <div className="dash-card">
           <h2>Spending by Category</h2>
@@ -185,9 +257,13 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
                 </Pie>
                 <Tooltip
                   formatter={(v, name) => [formatCurrency(v), name]}
-                  contentStyle={{ borderRadius: '10px', border: '1px solid #2d3a52', fontSize: 12, background: '#1c2338', color: '#f1f5f9' }}
+                  contentStyle={TOOLTIP_STYLE}
                 />
-                <Legend iconType="circle" iconSize={9} formatter={(v) => <span style={{ fontSize: 12, color: '#8898aa' }}>{v}</span>} />
+                <Legend
+                  iconType="circle"
+                  iconSize={9}
+                  formatter={(v) => <span style={{ fontSize: 12, color: '#8898aa' }}>{v}</span>}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
