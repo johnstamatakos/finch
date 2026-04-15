@@ -147,3 +147,14 @@
   height: 28px;
   background: var(--border-subtle);
 }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .stmts-page { padding: 16px; }
+  .stmts-header { flex-wrap: wrap; }
+  .stmts-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  .stmt-card { padding: 16px; }
+}

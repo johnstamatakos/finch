@@ -1,29 +1,51 @@
 import { useState, useEffect, useMemo } from 'react';
 import CategorySelect from '../../components/shared/CategorySelect.jsx';
+import RuleToast from '../../components/shared/RuleToast.jsx';
+import { useRuleToast } from '../../hooks/useRuleToast.js';
 import { formatCurrency, formatDate } from '../../utils/formatters.js';
-import { CATEGORY_COLORS } from '../../constants/categories.js';
 import './TransactionsPage.css';
+
+const TYPE_OPTIONS = [
+  { key: '', label: 'All' },
+  { key: 'expense', label: 'Expenses' },
+  { key: 'deposit', label: 'Deposits' },
+  { key: 'recurring', label: 'Recurring' },
+];
+
+const SORT_OPTIONS = [
+  { key: 'date', label: 'Date' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'category', label: 'Category' },
+  { key: 'merchant', label: 'Merchant' },
+];
 
 export default function TransactionsPage({
   statements,
   selectedId,
   allCategories,
   onCreateCategory,
-  filters,
 }) {
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Load transactions for selected statement or all
+  // Filters
+  const [typeFilter, setTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+  const [noRuleOnly, setNoRuleOnly] = useState(false);
+
+  // Sort
+  const [sortBy, setSortBy] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
+
+  const { pendingRule, triggerToast, saveRule, dismissToast } = useRuleToast();
+
   useEffect(() => {
     if (statements.length === 0) return;
     setLoading(true);
-
-    const ids = selectedId
-      ? [selectedId]
-      : statements.map((s) => s.id);
-
+    const ids = selectedId ? [selectedId] : statements.map((s) => s.id);
     Promise.all(
       ids.map((id) =>
         fetch(`/api/statements/${id}`)
@@ -39,16 +61,16 @@ export default function TransactionsPage({
   const filtered = useMemo(() => {
     let list = txns;
 
-    if (filters?.category) {
-      list = list.filter((t) => t.category === filters.category);
-    }
-    if (filters?.type === 'expense') {
-      list = list.filter((t) => !t.isDeposit);
-    } else if (filters?.type === 'deposit') {
-      list = list.filter((t) => t.isDeposit);
-    } else if (filters?.type === 'recurring') {
-      list = list.filter((t) => t.isRecurring);
-    }
+    if (typeFilter === 'expense') list = list.filter((t) => !t.isDeposit);
+    else if (typeFilter === 'deposit') list = list.filter((t) => t.isDeposit);
+    else if (typeFilter === 'recurring') list = list.filter((t) => t.isRecurring);
+
+    if (categoryFilter) list = list.filter((t) => t.category === categoryFilter);
+
+    if (minAmount !== '') list = list.filter((t) => Math.abs(t.amount) >= parseFloat(minAmount));
+    if (maxAmount !== '') list = list.filter((t) => Math.abs(t.amount) <= parseFloat(maxAmount));
+
+    if (noRuleOnly) list = list.filter((t) => !t.ruleApplied && !t.isDeposit);
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -60,11 +82,20 @@ export default function TransactionsPage({
       );
     }
 
-    return [...list].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [txns, filters, search]);
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'date')     cmp = (a.date || '').localeCompare(b.date || '');
+      else if (sortBy === 'amount')   cmp = Math.abs(a.amount) - Math.abs(b.amount);
+      else if (sortBy === 'category') cmp = (a.category || '').localeCompare(b.category || '');
+      else if (sortBy === 'merchant') cmp = (a.description || '').localeCompare(b.description || '');
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+  }, [txns, typeFilter, categoryFilter, minAmount, maxAmount, noRuleOnly, sortBy, sortDir, search]);
 
-  const updateTxn = (id, updates) =>
-    setTxns((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+  const updateTxn = (txn, newCategory) => {
+    setTxns((prev) => prev.map((t) => (t.id === txn.id ? { ...t, category: newCategory } : t)));
+    triggerToast(txn.description, newCategory);
+  };
 
   if (statements.length === 0) {
     return (
@@ -80,12 +111,11 @@ export default function TransactionsPage({
 
   return (
     <div className="tx-page">
+      {/* Header row */}
       <div className="tx-header">
         <div className="tx-header-left">
           <h1>Transactions</h1>
-          {!loading && (
-            <span className="tx-count">{filtered.length} shown</span>
-          )}
+          {!loading && <span className="tx-count">{filtered.length} shown</span>}
         </div>
         <input
           className="tx-search"
@@ -96,6 +126,90 @@ export default function TransactionsPage({
         />
       </div>
 
+      {/* Filter bar */}
+      <div className="tx-filters">
+        {/* Type pills */}
+        <div className="tx-type-pills">
+          {TYPE_OPTIONS.map(({ key, label }) => (
+            <button
+              key={key}
+              className={`tx-type-pill${typeFilter === key ? ' active' : ''}`}
+              onClick={() => setTypeFilter(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="tx-filter-sep" />
+
+        {/* Category */}
+        <select
+          className="tx-filter-select"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          <option value="">All categories</option>
+          {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        {/* Amount range */}
+        <div className="tx-amount-range">
+          <input
+            className="tx-amount-input"
+            type="number"
+            placeholder="$ min"
+            min="0"
+            value={minAmount}
+            onChange={(e) => setMinAmount(e.target.value)}
+          />
+          <span className="tx-amount-sep">–</span>
+          <input
+            className="tx-amount-input"
+            type="number"
+            placeholder="$ max"
+            min="0"
+            value={maxAmount}
+            onChange={(e) => setMaxAmount(e.target.value)}
+          />
+        </div>
+
+        <div className="tx-filter-sep" />
+
+        {/* Sort */}
+        <div className="tx-sort-group">
+          <select
+            className="tx-filter-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            {SORT_OPTIONS.map(({ key, label }) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+          <button
+            className="tx-sort-dir"
+            onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+            title={sortDir === 'desc' ? 'Descending' : 'Ascending'}
+          >
+            {sortDir === 'desc' ? '↓' : '↑'}
+          </button>
+        </div>
+
+        <div className="tx-filter-sep" />
+
+        {/* Unmatched only */}
+        <label className={`tx-norule${noRuleOnly ? ' active' : ''}`}>
+          <input
+            type="checkbox"
+            checked={noRuleOnly}
+            onChange={(e) => setNoRuleOnly(e.target.checked)}
+          />
+          Unmatched only
+        </label>
+      </div>
+
+      {/* Table */}
       {loading ? (
         <div className="tx-loading">Loading…</div>
       ) : (
@@ -115,9 +229,7 @@ export default function TransactionsPage({
                   <td className="tx-date">{formatDate(t.date)}</td>
                   <td className="tx-desc">
                     <span className="tx-source">{t.description}</span>
-                    {t.activity && (
-                      <span className="tx-activity">{t.activity}</span>
-                    )}
+                    {t.activity && <span className="tx-activity">{t.activity}</span>}
                   </td>
                   <td className="tx-cat">
                     {t.isDeposit ? (
@@ -126,7 +238,7 @@ export default function TransactionsPage({
                       <CategorySelect
                         value={t.category}
                         categories={allCategories}
-                        onChange={(cat) => updateTxn(t.id, { category: cat })}
+                        onChange={(cat) => updateTxn(t, cat)}
                         onCreateCategory={onCreateCategory}
                       />
                     )}
@@ -145,6 +257,8 @@ export default function TransactionsPage({
           </table>
         </div>
       )}
+
+      <RuleToast pendingRule={pendingRule} onSave={saveRule} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -1,0 +1,65 @@
+.rule-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  font-size: 13px;
+  color: var(--text-1);
+  white-space: nowrap;
+  z-index: 1100;
+  animation: toast-in 0.2s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.rule-toast-msg strong { color: var(--text-1); font-weight: 600; }
+.rule-toast-actions { display: flex; gap: 8px; }
+.rule-toast-save {
+  padding: 5px 14px;
+  border-radius: 7px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rule-toast-save:hover { opacity: 0.88; }
+.rule-toast-skip {
+  padding: 5px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.rule-toast-skip:hover { color: var(--text-1); }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .rule-toast {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 12px);
+    left: 16px;
+    right: 16px;
+    width: auto;
+    transform: none;
+    white-space: normal;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .rule-toast-actions { width: 100%; justify-content: flex-end; }
+}

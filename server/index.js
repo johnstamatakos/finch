@@ -14,7 +14,7 @@ import {
   deleteStatement,
   getAllFingerprints,
 } from './utils/statementStore.js';
-import { learnFromTransactions, applyRules } from './utils/rulesStore.js';
+import { applyRules, getRules, setRule, deleteRule } from './utils/rulesStore.js';
 import { generateInsights } from './ai/insightsAnalyzer.js';
 import { getCachedInsights, setCachedInsights, clearInsightsCache } from './utils/insightsCache.js';
 
@@ -78,7 +78,6 @@ app.post('/api/statements', async (req, res) => {
     }
 
     const statement = await saveStatement({ name, monthlyIncome: monthlyIncome || 0, transactions: unique });
-    await learnFromTransactions(unique);
     await clearInsightsCache();
     const { transactions: _tx, ...meta } = statement;
     return res.status(201).json({ ...meta, duplicateCount });
@@ -110,7 +109,6 @@ app.put('/api/statements/:id', async (req, res) => {
     }
     const updated = await updateStatement(req.params.id, { name, monthlyIncome, transactions });
     if (!updated) return res.status(404).json({ error: 'Statement not found.' });
-    await learnFromTransactions(transactions);
     await clearInsightsCache();
     const { transactions: _tx, ...meta } = updated;
     return res.json(meta);
@@ -160,10 +158,45 @@ app.post('/api/insights', async (req, res) => {
   }
 });
 
+// ── Rules CRUD ────────────────────────────────────────────────────────────────
+
+app.get('/api/rules', async (_req, res) => {
+  try {
+    const rules = await getRules();
+    return res.json(rules);
+  } catch (err) {
+    console.error('Error in GET /api/rules:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/rules', async (req, res) => {
+  try {
+    const { merchant, category } = req.body;
+    if (!merchant || !category) return res.status(400).json({ error: 'merchant and category required.' });
+    await setRule(merchant, category);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Error in POST /api/rules:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/rules/:key', async (req, res) => {
+  try {
+    const deleted = await deleteRule(decodeURIComponent(req.params.key));
+    if (!deleted) return res.status(404).json({ error: 'Rule not found.' });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Error in DELETE /api/rules/:key:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 ensureDataDir().then(() => {
   app.listen(PORT, () => {
-    console.log(`Budget Buddy server running on http://localhost:${PORT}`);
+    console.log(`Finch server running on http://localhost:${PORT}`);
   });
 });

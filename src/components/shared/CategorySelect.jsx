@@ -18,30 +18,45 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
   );
   const canCreate = search.trim().length > 0 && !exactMatch;
 
-  const openDrop = () => {
+  const calcPos = () => {
+    if (!triggerRef.current) return null;
     const rect = triggerRef.current.getBoundingClientRect();
     const dropW = Math.max(rect.width, 220);
-    const dropH = Math.min(300, filtered.length * 36 + 80);
+    const dropH = Math.min(320, filtered.length * 36 + 88);
     const spaceBelow = window.innerHeight - rect.bottom;
     const above = spaceBelow < dropH + 8 && rect.top > dropH + 8;
-    // Keep within viewport horizontally
     const left = Math.min(rect.left, window.innerWidth - dropW - 8);
-
-    setPos({
+    return {
       top: above ? rect.top - dropH - 4 : rect.bottom + 4,
       left,
       width: dropW,
       above,
-    });
+    };
+  };
+
+  const openDrop = () => {
+    const p = calcPos();
+    if (p) setPos(p);
     setOpen(true);
     setSearch('');
   };
 
   useEffect(() => {
     if (!open) return;
-    // Focus search box
-    const t = setTimeout(() => searchRef.current?.focus(), 0);
-    // Close on outside click
+
+    setTimeout(() => searchRef.current?.focus(), 0);
+
+    const reposition = () => {
+      if (!triggerRef.current) { setOpen(false); return; }
+      const rect = triggerRef.current.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setOpen(false);
+        return;
+      }
+      const p = calcPos();
+      if (p) setPos(p);
+    };
+
     const onMouseDown = (e) => {
       if (
         !triggerRef.current?.contains(e.target) &&
@@ -50,21 +65,18 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
         setOpen(false);
       }
     };
-    // Close on scroll anywhere
-    const onScroll = () => setOpen(false);
+
     document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('scroll', onScroll, true);
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
     return () => {
-      clearTimeout(t);
       document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
     };
   }, [open]);
 
-  const select = (cat) => {
-    onChange(cat);
-    setOpen(false);
-  };
+  const select = (cat) => { onChange(cat); setOpen(false); };
 
   const handleCreate = () => {
     const name = search.trim();
@@ -81,7 +93,6 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
       else if (canCreate) handleCreate();
     }
     if (e.key === 'ArrowDown') {
-      // Move focus to first option
       dropRef.current?.querySelector('.cat-opt')?.focus();
       e.preventDefault();
     }
@@ -103,9 +114,10 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
       {open && createPortal(
         <div
           ref={dropRef}
-          className={`cat-drop ${pos.above ? 'above' : ''}`}
+          className={`cat-drop${pos.above ? ' above' : ''}`}
           role="listbox"
           style={{ top: pos.top, left: pos.left, width: pos.width }}
+          onWheel={(e) => e.stopPropagation()}
         >
           <div className="cat-search-wrap">
             <span className="cat-search-icon">⌕</span>
@@ -113,7 +125,7 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
               ref={searchRef}
               className="cat-search-input"
               type="text"
-              placeholder="Search categories..."
+              placeholder="Search or create…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -126,13 +138,11 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
                 type="button"
                 tabIndex={-1}
                 aria-label="Clear search"
-              >
-                ×
-              </button>
+              >×</button>
             )}
           </div>
 
-          <div className="cat-list" role="group" onWheel={(e) => e.stopPropagation()}>
+          <div className="cat-list" role="group">
             {filtered.map((c) => (
               <button
                 key={c}
@@ -150,15 +160,13 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
                 <span className="cat-opt-label">{highlight(c, search)}</span>
               </button>
             ))}
-
             {filtered.length === 0 && !canCreate && (
               <div className="cat-empty">No categories match</div>
             )}
           </div>
 
-          {/* Always-visible create footer — active when typing a new name, hint when idle */}
-          <div className="cat-create-wrap">
-            {canCreate ? (
+          {canCreate && (
+            <div className="cat-create-wrap">
               <button
                 className="cat-create-btn"
                 type="button"
@@ -167,17 +175,8 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
                 <span className="cat-create-plus">+</span>
                 Create <strong>"{search.trim()}"</strong>
               </button>
-            ) : !exactMatch && (
-              <button
-                className="cat-create-btn cat-create-hint"
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); searchRef.current?.focus(); }}
-              >
-                <span className="cat-create-plus">+</span>
-                New category…
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>,
         document.body
       )}
@@ -185,7 +184,6 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
   );
 }
 
-/** Wraps the matched substring in a <mark> */
 function highlight(text, query) {
   if (!query) return text;
   const idx = text.toLowerCase().indexOf(query.toLowerCase());

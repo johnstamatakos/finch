@@ -172,3 +172,12 @@
   box-shadow: 0 0 16px var(--accent-glow);
 }
 .upload-submit-btn:disabled { background: var(--surface-3); color: var(--text-3); cursor: not-allowed; }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .upload-modal-overlay { padding: 0; align-items: flex-end; }
+  .upload-modal-card {
+    border-radius: 20px 20px 0 0;
+    max-width: 100%;
+  }
+}

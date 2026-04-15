@@ -32,15 +32,56 @@ async function saveRules(rules) {
 export async function learnFromTransactions(transactions) {
   const rules = await loadRules();
   let changed = false;
+  const knownCategories = new Set(Object.values(rules));
+
   for (const t of transactions) {
     if (t.isDeposit) continue;
     const key = normalize(t.description);
-    if (key && rules[key] !== t.category) {
+    if (!key) continue;
+
+    if (rules[key] === undefined) {
+      if (!knownCategories.has(t.category)) {
+        console.log(`[rules] New category: ${t.category}`);
+        knownCategories.add(t.category);
+      }
+      console.log(`[rules] New rule: "${key}" → ${t.category}`);
+      rules[key] = t.category;
+      changed = true;
+    } else if (rules[key] !== t.category) {
+      console.log(`[rules] Rule updated: "${key}" ${rules[key]} → ${t.category}`);
       rules[key] = t.category;
       changed = true;
     }
   }
+
   if (changed) await saveRules(rules);
+}
+
+export async function getRules() {
+  return loadRules();
+}
+
+export async function setRule(merchant, category) {
+  const key = normalize(merchant);
+  if (!key) return;
+  const rules = await loadRules();
+  const isNew = rules[key] === undefined;
+  const categoryIsNew = !Object.values(rules).includes(category);
+  if (isNew && categoryIsNew) console.log(`[rules] New category: ${category}`);
+  if (isNew) console.log(`[rules] New rule: "${key}" → ${category}`);
+  else console.log(`[rules] Rule updated: "${key}" ${rules[key]} → ${category}`);
+  rules[key] = category;
+  await saveRules(rules);
+}
+
+export async function deleteRule(merchant) {
+  const key = normalize(merchant);
+  const rules = await loadRules();
+  if (rules[key] === undefined) return false;
+  console.log(`[rules] Rule deleted: "${key}"`);
+  delete rules[key];
+  await saveRules(rules);
+  return true;
 }
 
 /**
@@ -53,8 +94,10 @@ export async function applyRules(transactions) {
   return transactions.map((t) => {
     if (t.isDeposit) return { ...t, ruleApplied: true };
     const learned = rules[normalize(t.description)];
-    return learned
-      ? { ...t, category: learned, ruleApplied: true }
-      : { ...t, ruleApplied: false };
+    if (learned) {
+      console.log(`[rules] Rule applied: "${t.description}" → ${learned}`);
+      return { ...t, category: learned, ruleApplied: true };
+    }
+    return { ...t, ruleApplied: false };
   });
 }

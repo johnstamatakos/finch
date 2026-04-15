@@ -3,7 +3,6 @@
   display: inline-block;
 }
 
-/* Trigger button */
 .cat-trigger {
   display: inline-flex;
   align-items: center;
@@ -39,7 +38,7 @@
   flex-shrink: 0;
 }
 
-/* Dropdown (rendered in portal) */
+/* Dropdown (portal, fixed position) */
 .cat-drop {
   position: fixed;
   z-index: 9999;
@@ -50,10 +49,10 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 480px;
+  max-height: 320px;
 }
 
-/* Search bar */
+/* Search */
 .cat-search-wrap {
   display: flex;
   align-items: center;
@@ -80,7 +79,6 @@
   color: var(--text-1);
   min-width: 0;
 }
-
 .cat-search-input::placeholder { color: var(--text-3); }
 
 .cat-search-clear {
@@ -96,7 +94,7 @@
 }
 .cat-search-clear:hover { color: var(--text-1); }
 
-/* Options list */
+/* Options */
 .cat-list {
   overflow-y: auto;
   flex: 1;
@@ -152,7 +150,7 @@
   text-align: center;
 }
 
-/* Create new category CTA */
+/* Create new */
 .cat-create-wrap {
   border-top: 1px solid var(--border-subtle);
   padding: 4px;
@@ -175,15 +173,7 @@
   cursor: pointer;
   transition: background 0.1s;
 }
-
 .cat-create-btn:hover { background: var(--accent-dim); }
-
-.cat-create-hint { color: var(--text-3); }
-.cat-create-hint .cat-create-plus {
-  background: var(--surface-3);
-  color: var(--text-3);
-}
-
 .cat-create-btn strong { font-weight: 600; }
 
 .cat-create-plus {

@@ -10,11 +10,8 @@
 .shell-header {
   display: flex;
   align-items: center;
-  gap: 0;
   padding: 0 28px;
   min-height: 80px;
-  height: auto;
-  padding: 0 28px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -127,14 +124,33 @@
   padding-top: 20px;
 }
 
+.sidebar-section-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 6px;
+  margin-bottom: 8px;
+}
+.sidebar-section-hd:hover .sidebar-label { color: var(--text-2); }
+
+.sidebar-chevron {
+  font-size: 9px;
+  color: var(--text-3);
+}
+
 .sidebar-label {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-3);
-  margin-bottom: 8px;
-  padding: 0 6px;
+  margin-bottom: 0;
+  padding: 0;
+  transition: color 0.12s;
 }
 
 .sidebar-period-btn {
@@ -198,3 +214,164 @@
   height: 32px;
 }
 .sidebar-budget-input::placeholder { color: var(--text-3); }
+
+/* ── Bottom nav (mobile only) ─────────────────────────────────── */
+.shell-bottom-nav {
+  display: none; /* shown via media query */
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (≤1024px): tighten header, shrink sidebar ─────────── */
+@media (max-width: 1024px) {
+  .shell-header { padding: 0 20px; }
+  .shell-logo { margin-right: 20px; }
+  .shell-logo-img { height: 64px; }
+  .shell-sidebar { width: 190px; }
+}
+
+/* ── Mobile (≤767px): bottom nav, stacked sidebar ─────────────── */
+@media (max-width: 767px) {
+  /* Slimmer header — just logo + upload */
+  .shell-header {
+    padding: 0 16px;
+    min-height: 60px;
+  }
+  .shell-logo { margin-right: auto; }
+  .shell-logo-img { height: 52px; }
+
+  /* Hide top-nav tabs on mobile */
+  .shell-nav { display: none; }
+
+  /* Upload button stays, but smaller */
+  .shell-upload-btn {
+    padding: 7px 14px;
+    font-size: 12px;
+  }
+
+  /* Body stacks vertically */
+  .shell-body {
+    flex-direction: column;
+    padding-bottom: 64px; /* room for bottom nav */
+  }
+
+  /* Sidebar becomes a horizontal scroll strip */
+  .shell-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0 8px;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  /* Sidebar sections flow horizontally */
+  .shell-sidebar > div {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    padding: 0 16px;
+  }
+
+  .sidebar-section {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .sidebar-section + .sidebar-section {
+    border-top: none;
+    border-left: 1px solid var(--border-subtle);
+    padding-top: 0;
+    padding-left: 12px;
+    margin-left: 12px;
+  }
+
+  /* Hide the collapsible toggle on mobile */
+  .sidebar-section-hd {
+    display: none;
+  }
+
+  /* Show period buttons inline */
+  .sidebar-period-btn {
+    display: inline-block;
+    width: auto;
+    padding: 5px 12px;
+    font-size: 12px;
+    border-radius: 20px;
+    border: 1.5px solid transparent;
+  }
+  .sidebar-period-btn.active {
+    border-color: var(--accent);
+  }
+
+  /* Budget input: compact */
+  .sidebar-budget-wrap { min-width: 120px; }
+
+  /* ── Bottom nav ──────────────────────────────────────────────── */
+  .shell-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    /* iOS safe area */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .shell-bottom-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-3);
+    transition: color 0.15s;
+    padding: 8px 4px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .shell-bottom-tab:hover,
+  .shell-bottom-tab.active {
+    color: var(--accent-hover);
+  }
+  .shell-bottom-tab.active .shell-bottom-icon {
+    background: var(--accent-dim);
+    border-radius: 12px;
+  }
+
+  .shell-bottom-icon {
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px 16px;
+    transition: background 0.15s;
+  }
+
+  .shell-bottom-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+}
+
+/* ── Very small phones (≤380px) ───────────────────────────────── */
+@media (max-width: 380px) {
+  .shell-bottom-label { display: none; }
+  .shell-bottom-tab { justify-content: center; }
+  .shell-bottom-icon { font-size: 20px; padding: 6px 12px; }
+}

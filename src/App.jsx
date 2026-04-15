@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import AppShell from './components/AppShell/AppShell.jsx';
 import UploadModal from './components/UploadModal/UploadModal.jsx';
-import ReviewDrawer from './components/ReviewDrawer/ReviewDrawer.jsx';
+import ReviewModal from './components/ReviewModal/ReviewModal.jsx';
 import DashboardPage from './pages/DashboardPage/DashboardPage.jsx';
 import TransactionsPage from './pages/TransactionsPage/TransactionsPage.jsx';
 import StatementsPage from './pages/StatementsPage/StatementsPage.jsx';
+import RulesPage from './pages/RulesPage/RulesPage.jsx';
 import LoadingSpinner from './components/shared/LoadingSpinner.jsx';
 import ErrorBanner from './components/shared/ErrorBanner.jsx';
 import { useCategories } from './hooks/useCategories.js';
@@ -36,9 +37,6 @@ export default function App() {
     if (val > 0) localStorage.setItem('finch_budget_goal', String(val));
     else localStorage.removeItem('finch_budget_goal');
   };
-
-  // ── Transaction-page filters ─────────────────────────────────────────────
-  const [txFilters, setTxFilters] = useState({ category: '', type: '' });
 
   // ── Global UI state ──────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false);
@@ -132,29 +130,30 @@ export default function App() {
     return bKey - aKey; // newest first
   });
 
+  const periodButtons = (
+    <>
+      <button
+        className={`sidebar-period-btn${selectedId === null ? ' active' : ''}`}
+        onClick={() => setSelectedId(null)}
+      >
+        All Time
+      </button>
+      {sortedStatements.map((s) => (
+        <button
+          key={s.id}
+          className={`sidebar-period-btn${selectedId === s.id ? ' active' : ''}`}
+          onClick={() => setSelectedId(s.id)}
+        >
+          {s.period?.label ?? s.name}
+        </button>
+      ))}
+    </>
+  );
+
   const dashboardSidebar = savedStatements.length > 0 ? (
     <div>
-      <div className="sidebar-section">
-        <div className="sidebar-label">Period</div>
-        <button
-          className={`sidebar-period-btn${selectedId === null ? ' active' : ''}`}
-          onClick={() => setSelectedId(null)}
-        >
-          All Time
-        </button>
-        {sortedStatements.map((s) => (
-          <button
-            key={s.id}
-            className={`sidebar-period-btn${selectedId === s.id ? ' active' : ''}`}
-            onClick={() => setSelectedId(s.id)}
-          >
-            {s.period?.label ?? s.name}
-          </button>
-        ))}
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-label">Monthly Budget</div>
+      <SidebarSection label="Period">{periodButtons}</SidebarSection>
+      <SidebarSection label="Monthly Budget">
         <div className="sidebar-budget-wrap">
           <span className="sidebar-budget-sign">$</span>
           <input
@@ -167,67 +166,13 @@ export default function App() {
             onChange={(e) => setBudgetGoal(parseFloat(e.target.value) || 0)}
           />
         </div>
-      </div>
+      </SidebarSection>
     </div>
   ) : null;
 
   const txSidebar = (
     <div>
-      <div className="sidebar-section">
-        <div className="sidebar-label">Period</div>
-        <button
-          className={`sidebar-period-btn${selectedId === null ? ' active' : ''}`}
-          onClick={() => setSelectedId(null)}
-        >
-          All Time
-        </button>
-        {sortedStatements.map((s) => (
-          <button
-            key={s.id}
-            className={`sidebar-period-btn${selectedId === s.id ? ' active' : ''}`}
-            onClick={() => setSelectedId(s.id)}
-          >
-            {s.period?.label ?? s.name}
-          </button>
-        ))}
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-label">Type</div>
-        {[
-          { key: '', label: 'All' },
-          { key: 'expense', label: 'Expenses' },
-          { key: 'deposit', label: 'Deposits' },
-          { key: 'recurring', label: 'Recurring' },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            className={`sidebar-period-btn${txFilters.type === key ? ' active' : ''}`}
-            onClick={() => setTxFilters((f) => ({ ...f, type: key }))}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-label">Category</div>
-        <button
-          className={`sidebar-period-btn${txFilters.category === '' ? ' active' : ''}`}
-          onClick={() => setTxFilters((f) => ({ ...f, category: '' }))}
-        >
-          All
-        </button>
-        {allCategories.map((cat) => (
-          <button
-            key={cat}
-            className={`sidebar-period-btn${txFilters.category === cat ? ' active' : ''}`}
-            onClick={() => setTxFilters((f) => ({ ...f, category: cat }))}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
+      <SidebarSection label="Period">{periodButtons}</SidebarSection>
     </div>
   );
 
@@ -261,7 +206,6 @@ export default function App() {
             selectedId={selectedId}
             allCategories={allCategories}
             onCreateCategory={addCategory}
-            filters={txFilters}
           />
         )}
 
@@ -273,6 +217,8 @@ export default function App() {
             onUpload={() => setUploadOpen(true)}
           />
         )}
+
+        {page === 'rules' && <RulesPage />}
       </AppShell>
 
       {uploadOpen && (
@@ -283,7 +229,7 @@ export default function App() {
       )}
 
       {reviewData && (
-        <ReviewDrawer
+        <ReviewModal
           initialTransactions={reviewData.transactions}
           defaultName={reviewData.defaultName}
           allCategories={allCategories}
@@ -293,6 +239,20 @@ export default function App() {
         />
       )}
     </>
+  );
+}
+
+// Collapsible sidebar section
+function SidebarSection({ label, children }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="sidebar-section">
+      <button className="sidebar-section-hd" onClick={() => setOpen((v) => !v)}>
+        <span className="sidebar-label">{label}</span>
+        <span className="sidebar-chevron" aria-hidden>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && children}
+    </div>
   );
 }
 

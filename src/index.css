@@ -44,6 +44,7 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text-1);
+  overflow-x: hidden;
 }
 
 #root {

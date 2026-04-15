@@ -184,7 +184,7 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v) => [formatCurrency(v), 'Amount']}
+                  formatter={(v, name) => [formatCurrency(v), name]}
                   contentStyle={{ borderRadius: '10px', border: '1px solid #2d3a52', fontSize: 12, background: '#1c2338', color: '#f1f5f9' }}
                 />
                 <Legend iconType="circle" iconSize={9} formatter={(v) => <span style={{ fontSize: 12, color: '#8898aa' }}>{v}</span>} />
