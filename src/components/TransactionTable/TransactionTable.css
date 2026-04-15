@@ -201,6 +201,16 @@
 
 .col-date { color: #6b7280; font-size: 14px; white-space: nowrap; }
 .col-desc { font-size: 14px; color: #111827; max-width: 300px; }
+
+.tx-source { display: block; }
+.tx-activity {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 .col-amount { font-weight: 600; font-size: 14px; white-space: nowrap; }
 .col-amount.positive { color: #16a34a; }
 .col-amount.negative { color: #dc2626; }

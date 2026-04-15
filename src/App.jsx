@@ -1,34 +1,52 @@
 import { useState, useEffect } from 'react';
-import HomeView from './components/HomeView/HomeView.jsx';
-import UploadView from './components/UploadView/UploadView.jsx';
-import TransactionTable from './components/TransactionTable/TransactionTable.jsx';
-import Dashboard from './components/Dashboard/Dashboard.jsx';
-import HistoryView from './components/HistoryView/HistoryView.jsx';
+import AppShell from './components/AppShell/AppShell.jsx';
+import UploadModal from './components/UploadModal/UploadModal.jsx';
+import ReviewDrawer from './components/ReviewDrawer/ReviewDrawer.jsx';
+import DashboardPage from './pages/DashboardPage/DashboardPage.jsx';
+import TransactionsPage from './pages/TransactionsPage/TransactionsPage.jsx';
+import StatementsPage from './pages/StatementsPage/StatementsPage.jsx';
 import LoadingSpinner from './components/shared/LoadingSpinner.jsx';
 import ErrorBanner from './components/shared/ErrorBanner.jsx';
+import { useCategories } from './hooks/useCategories.js';
+import { CATEGORIES } from './constants/categories.js';
 import './App.css';
 
 export default function App() {
-  // 'loading' | 'home' | 'upload' | 'review' | 'dashboard' | 'history'
-  const [view, setView] = useState('loading');
-  const [savedStatements, setSavedStatements] = useState([]); // metadata list
-  const [transactions, setTransactions] = useState([]);
-  const [monthlyIncome, setMonthlyIncome] = useState(0);
-  const [currentStatementId, setCurrentStatementId] = useState(null); // null = fresh
-  const [currentStatementName, setCurrentStatementName] = useState('');
-  const [defaultSaveName, setDefaultSaveName] = useState('');
+  const { allCategories, addCategory } = useCategories();
+
+  // ── Navigation ───────────────────────────────────────────────────────────
+  const [page, setPage] = useState('dashboard');
+
+  // ── Statement data ───────────────────────────────────────────────────────
+  const [savedStatements, setSavedStatements] = useState([]);
+  const [selectedId, setSelectedId] = useState(null); // null = All Time
+
+  // ── Upload + Review flow ─────────────────────────────────────────────────
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [reviewData, setReviewData] = useState(null); // { transactions, defaultName }
+
+  // ── Budget goal (persisted in localStorage) ──────────────────────────────
+  const [budgetGoal, setBudgetGoalState] = useState(() => {
+    const stored = localStorage.getItem('finch_budget_goal');
+    return stored ? parseFloat(stored) : 0;
+  });
+
+  const setBudgetGoal = (val) => {
+    setBudgetGoalState(val);
+    if (val > 0) localStorage.setItem('finch_budget_goal', String(val));
+    else localStorage.removeItem('finch_budget_goal');
+  };
+
+  // ── Transaction-page filters ─────────────────────────────────────────────
+  const [txFilters, setTxFilters] = useState({ category: '', type: '' });
+
+  // ── Global UI state ──────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load statements list on mount
+  // ── Load statements on mount ─────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/statements')
-      .then((r) => r.json())
-      .then((data) => {
-        setSavedStatements(Array.isArray(data) ? data : []);
-        setView(Array.isArray(data) && data.length > 0 ? 'home' : 'upload');
-      })
-      .catch(() => setView('upload'));
+    refreshStatements();
   }, []);
 
   const refreshStatements = () =>
@@ -37,50 +55,50 @@ export default function App() {
       .then((data) => setSavedStatements(Array.isArray(data) ? data : []))
       .catch(() => {});
 
-  // ── Analyze a new file ────────────────────────────────────────────────────
-  const handleAnalyze = async (file, income) => {
+  // ── Analyze uploaded file ─────────────────────────────────────────────────
+  const handleAnalyze = async (file) => {
     setIsLoading(true);
     setError(null);
+    setUploadOpen(false);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('monthlyIncome', income);
 
       const res = await fetch('/api/analyze', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Analysis failed. Please try again.');
 
-      setTransactions(data.transactions);
-      setMonthlyIncome(data.monthlyIncome);
-      setCurrentStatementId(null);
-      setCurrentStatementName('');
-      // Suggest a name based on the detected period — we'll compute it client-side from dates
-      setDefaultSaveName(suggestName(data.transactions));
-      setView('review');
+      setReviewData({
+        transactions: data.transactions,
+        defaultName: suggestName(data.transactions),
+      });
     } catch (err) {
       setError(err.message);
+      setUploadOpen(true); // reopen so they can retry
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Save a new statement ──────────────────────────────────────────────────
-  const handleSaveStatement = async (name) => {
+  // ── Save new statement from drawer ────────────────────────────────────────
+  const handleSaveNew = async (name, transactions) => {
     setIsLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/statements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, monthlyIncome, transactions }),
+        body: JSON.stringify({ name, monthlyIncome: 0, transactions }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed.');
 
-      setCurrentStatementId(data.id);
-      setCurrentStatementName(name);
+      setReviewData(null);
       await refreshStatements();
-      setView('home');
+      setPage('dashboard');
+      if (data.duplicateCount > 0) {
+        setError(`Saved. ${data.duplicateCount} duplicate transaction${data.duplicateCount === 1 ? '' : 's'} already in another statement were skipped.`);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -88,54 +106,8 @@ export default function App() {
     }
   };
 
-  // ── Update an existing statement (re-categorized) ────────────────────────
-  const handleUpdateStatement = async (name) => {
-    if (!currentStatementId) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/statements/${currentStatementId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, monthlyIncome, transactions }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed.');
-
-      setCurrentStatementName(name);
-      await refreshStatements();
-      setView('home');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ── Load a saved statement for viewing/editing ───────────────────────────
-  const handleSelectStatement = async (id) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/statements/${id}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not load statement.');
-
-      setTransactions(data.transactions);
-      setMonthlyIncome(data.monthlyIncome);
-      setCurrentStatementId(data.id);
-      setCurrentStatementName(data.name);
-      setDefaultSaveName(data.name);
-      setView('review');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ── Delete a statement ───────────────────────────────────────────────────
-  const handleDeleteStatement = async (id) => {
+  // ── Delete statement ──────────────────────────────────────────────────────
+  const handleDelete = async (id) => {
     if (!window.confirm('Delete this statement? This cannot be undone.')) return;
     setIsLoading(true);
     try {
@@ -144,12 +116,8 @@ export default function App() {
         const data = await res.json();
         throw new Error(data.error || 'Delete failed.');
       }
+      if (selectedId === id) setSelectedId(null);
       await refreshStatements();
-      setSavedStatements((prev) => {
-        const next = prev.filter((s) => s.id !== id);
-        if (next.length === 0) setView('upload');
-        return next;
-      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -157,62 +125,171 @@ export default function App() {
     }
   };
 
-  // ── Local edits (category / recurring) ───────────────────────────────────
-  const updateTransaction = (id, updates) => {
-    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
-  };
+  // ── Sidebar ───────────────────────────────────────────────────────────────
+  const sortedStatements = [...savedStatements].sort((a, b) => {
+    const aKey = (a.period?.year ?? 0) * 12 + (a.period?.month ?? 0);
+    const bKey = (b.period?.year ?? 0) * 12 + (b.period?.month ?? 0);
+    return bKey - aKey; // newest first
+  });
 
-  const handleSave = currentStatementId ? handleUpdateStatement : handleSaveStatement;
+  const dashboardSidebar = savedStatements.length > 0 ? (
+    <div>
+      <div className="sidebar-section">
+        <div className="sidebar-label">Period</div>
+        <button
+          className={`sidebar-period-btn${selectedId === null ? ' active' : ''}`}
+          onClick={() => setSelectedId(null)}
+        >
+          All Time
+        </button>
+        {sortedStatements.map((s) => (
+          <button
+            key={s.id}
+            className={`sidebar-period-btn${selectedId === s.id ? ' active' : ''}`}
+            onClick={() => setSelectedId(s.id)}
+          >
+            {s.period?.label ?? s.name}
+          </button>
+        ))}
+      </div>
 
-  if (view === 'loading') return null;
+      <div className="sidebar-section">
+        <div className="sidebar-label">Monthly Budget</div>
+        <div className="sidebar-budget-wrap">
+          <span className="sidebar-budget-sign">$</span>
+          <input
+            className="sidebar-budget-input"
+            type="number"
+            min="0"
+            step="100"
+            placeholder="Set a goal…"
+            value={budgetGoal || ''}
+            onChange={(e) => setBudgetGoal(parseFloat(e.target.value) || 0)}
+          />
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const txSidebar = (
+    <div>
+      <div className="sidebar-section">
+        <div className="sidebar-label">Period</div>
+        <button
+          className={`sidebar-period-btn${selectedId === null ? ' active' : ''}`}
+          onClick={() => setSelectedId(null)}
+        >
+          All Time
+        </button>
+        {sortedStatements.map((s) => (
+          <button
+            key={s.id}
+            className={`sidebar-period-btn${selectedId === s.id ? ' active' : ''}`}
+            onClick={() => setSelectedId(s.id)}
+          >
+            {s.period?.label ?? s.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-label">Type</div>
+        {[
+          { key: '', label: 'All' },
+          { key: 'expense', label: 'Expenses' },
+          { key: 'deposit', label: 'Deposits' },
+          { key: 'recurring', label: 'Recurring' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            className={`sidebar-period-btn${txFilters.type === key ? ' active' : ''}`}
+            onClick={() => setTxFilters((f) => ({ ...f, type: key }))}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-label">Category</div>
+        <button
+          className={`sidebar-period-btn${txFilters.category === '' ? ' active' : ''}`}
+          onClick={() => setTxFilters((f) => ({ ...f, category: '' }))}
+        >
+          All
+        </button>
+        {allCategories.map((cat) => (
+          <button
+            key={cat}
+            className={`sidebar-period-btn${txFilters.category === cat ? ' active' : ''}`}
+            onClick={() => setTxFilters((f) => ({ ...f, category: cat }))}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const sidebar =
+    page === 'dashboard' ? dashboardSidebar :
+    page === 'transactions' ? txSidebar :
+    null;
 
   return (
     <>
       {isLoading && <LoadingSpinner />}
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {view === 'home' && (
-        <HomeView
-          statements={savedStatements}
-          onNew={() => setView('upload')}
-          onSelect={handleSelectStatement}
-          onDelete={handleDeleteStatement}
-          onHistory={() => setView('history')}
-        />
-      )}
+      <AppShell
+        page={page}
+        onPageChange={setPage}
+        onUpload={() => setUploadOpen(true)}
+        sidebar={sidebar}
+      >
+        {page === 'dashboard' && (
+          <DashboardPage
+            statements={savedStatements}
+            selectedId={selectedId}
+            budgetGoal={budgetGoal}
+          />
+        )}
 
-      {view === 'upload' && (
-        <UploadView
+        {page === 'transactions' && (
+          <TransactionsPage
+            statements={savedStatements}
+            selectedId={selectedId}
+            allCategories={allCategories}
+            onCreateCategory={addCategory}
+            filters={txFilters}
+          />
+        )}
+
+        {page === 'statements' && (
+          <StatementsPage
+            statements={sortedStatements}
+            onSelect={(id) => { setSelectedId(id); setPage('transactions'); }}
+            onDelete={handleDelete}
+            onUpload={() => setUploadOpen(true)}
+          />
+        )}
+      </AppShell>
+
+      {uploadOpen && (
+        <UploadModal
           onAnalyze={handleAnalyze}
-          showBack={savedStatements.length > 0}
-          onBack={() => setView('home')}
+          onClose={() => setUploadOpen(false)}
         />
       )}
 
-      {view === 'review' && (
-        <TransactionTable
-          transactions={transactions}
-          onUpdate={updateTransaction}
-          onViewDashboard={() => setView('dashboard')}
-          onBack={() => setView(savedStatements.length > 0 ? 'home' : 'upload')}
-          onSave={handleSave}
-          statementName={currentStatementName}
-          defaultSaveName={defaultSaveName}
-        />
-      )}
-
-      {view === 'dashboard' && (
-        <Dashboard
-          transactions={transactions}
-          monthlyIncome={monthlyIncome}
-          onBack={() => setView('review')}
-        />
-      )}
-
-      {view === 'history' && (
-        <HistoryView
-          statements={savedStatements}
-          onBack={() => setView('home')}
+      {reviewData && (
+        <ReviewDrawer
+          initialTransactions={reviewData.transactions}
+          defaultName={reviewData.defaultName}
+          allCategories={allCategories}
+          onCreateCategory={addCategory}
+          onSave={handleSaveNew}
+          onClose={() => setReviewData(null)}
         />
       )}
     </>

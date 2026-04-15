@@ -1,95 +1,90 @@
 import { anthropic } from './claudeClient.js';
 
-const SYSTEM_PROMPT = `You are a financial transaction analyzer. Given raw bank statement or spreadsheet data, extract every transaction and return them as a JSON object.
+const SYSTEM_PROMPT = `You are a bank transaction categorizer. Given a JSON array of transactions (each with a source/merchant and optional bank activity type), return a JSON array with a category and isRecurring flag for each one — in the same order.
 
-Rules:
-- Deposits/credits/income are POSITIVE amounts; expenses/debits/charges are NEGATIVE
-- Categorize each transaction into exactly one of these categories:
-  Auto, Home, Utilities, Credit Cards, Student Loans, Subscriptions, Shopping, Groceries, Restaurants, Other
-- Mark isRecurring: true for charges that repeat on a fixed schedule (rent, Netflix, Spotify, gym, loan payments, insurance, phone bill, internet, utilities, etc.)
-- Mark isDeposit: true when the amount is positive (paycheck, refund, transfer in, interest)
+Valid categories: Auto, Home, Utilities, Credit Cards, Student Loans, Subscriptions, Shopping, Groceries, Restaurants, Other
 
 Category guide:
-- Auto: gas stations, car payments, auto insurance, parking, car repair, Uber/Lyft (as a passenger)
-- Home: rent, mortgage, home insurance, furniture, home repair, household items
+- Auto: gas stations, car payments, auto insurance, parking, car repair, Uber/Lyft (passenger)
+- Home: rent, mortgage, home insurance, furniture, home repair
 - Utilities: electric, gas, water, internet, phone bill, cable
 - Credit Cards: credit card payments (not purchases)
 - Student Loans: student loan payments
-- Subscriptions: Netflix, Spotify, Hulu, Disney+, gym memberships, software, magazines, meal kits
+- Subscriptions: Netflix, Spotify, Hulu, Disney+, gym memberships, software subscriptions
 - Shopping: Amazon, clothing, electronics, general retail, department stores
-- Groceries: supermarkets, grocery stores (Whole Foods, Trader Joe's, Costco, etc.)
-- Restaurants: restaurants, cafes, fast food, bars, food delivery (DoorDash, Uber Eats, Grubhub)
-- Other: anything else that does not fit the above
+- Groceries: Whole Foods, Trader Joe's, Costco, supermarkets, grocery stores
+- Restaurants: restaurants, cafes, fast food, bars, DoorDash, Uber Eats, Grubhub
+- Other: deposits, paychecks, refunds, transfers, ATM, and anything else
 
-You MUST return ONLY a valid JSON object with this exact structure — no markdown, no explanation:
-{
-  "transactions": [
-    {
-      "date": "YYYY-MM-DD",
-      "description": "merchant or transaction name",
-      "amount": -12.34,
-      "category": "Restaurants",
-      "isRecurring": false,
-      "isDeposit": false
-    }
-  ]
-}`;
+isRecurring: true for fixed-schedule charges — subscriptions, rent, loan payments, utilities, insurance, phone bills
 
-export async function analyzeTransactions(rawData) {
-  const stream = anthropic.messages.stream({
-    model: 'claude-opus-4-6',
-    max_tokens: 16000,
-    thinking: { type: 'adaptive' },
-    system: [
-      {
-        type: 'text',
-        text: SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    messages: [
-      {
-        role: 'user',
-        content: `Analyze the following financial data and extract all transactions:\n\n${rawData}`,
-      },
-    ],
-  });
+Return ONLY a valid JSON array — no markdown, no explanation. Include the i field from the input:
+[{"i":0,"category":"Restaurants","isRecurring":false},...]`;
 
-  const message = await stream.finalMessage();
+const BATCH_SIZE = 80; // safe ceiling for Haiku's 4096-token output limit
 
-  // Extract text from response
-  let jsonText = '';
-  for (const block of message.content) {
-    if (block.type === 'text') {
-      jsonText = block.text;
-      break;
-    }
+export async function analyzeTransactions(transactions) {
+  const categoryMap = {};
+
+  // Process in batches, preserving global indices
+  for (let start = 0; start < transactions.length; start += BATCH_SIZE) {
+    const batch = transactions.slice(start, start + BATCH_SIZE);
+    const batchMap = await categorizeBatch(batch, start);
+    Object.assign(categoryMap, batchMap);
   }
 
-  // Strip markdown code fences if present
+  return transactions.map((t, i) => ({
+    ...t,
+    category: categoryMap[i]?.category || 'Other',
+    isRecurring: Boolean(categoryMap[i]?.isRecurring),
+  }));
+}
+
+async function categorizeBatch(batch, offset) {
+  const input = batch.map((t, idx) => {
+    const entry = { i: offset + idx, source: t.source, isDeposit: t.amount > 0 };
+    if (t.activity) entry.activity = t.activity;
+    return entry;
+  });
+
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4096,
+    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: JSON.stringify(input) }],
+  });
+
+  let jsonText = '';
+  for (const block of message.content) {
+    if (block.type === 'text') { jsonText = block.text; break; }
+  }
+
   jsonText = jsonText
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
 
-  // Find the JSON object bounds
-  const start = jsonText.indexOf('{');
-  const end = jsonText.lastIndexOf('}');
-  if (start !== -1 && end !== -1) {
-    jsonText = jsonText.slice(start, end + 1);
-  }
+  const s = jsonText.indexOf('[');
+  const e = jsonText.lastIndexOf(']');
+  if (s !== -1 && e !== -1) jsonText = jsonText.slice(s, e + 1);
 
-  let parsed;
+  let categories;
   try {
-    parsed = JSON.parse(jsonText);
+    categories = JSON.parse(jsonText);
   } catch {
-    throw new Error('Failed to parse Claude response as JSON. Please try again.');
+    console.error('Haiku parse failed. stop_reason:', message.stop_reason, '| batch offset:', offset);
+    console.error('Raw (first 300):', jsonText.slice(0, 300));
+    throw new Error('Failed to parse Claude response. Please try again.');
   }
 
-  if (!parsed.transactions || !Array.isArray(parsed.transactions)) {
+  if (!Array.isArray(categories)) {
     throw new Error('Unexpected response format from Claude. Please try again.');
   }
 
-  return parsed.transactions;
+  const map = {};
+  for (const item of categories) {
+    if (typeof item.i === 'number') map[item.i] = item;
+  }
+  return map;
 }

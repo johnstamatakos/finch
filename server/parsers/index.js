@@ -1,26 +1,16 @@
-import { parsePdf } from './pdfParser.js';
 import { parseSpreadsheet } from './spreadsheetParser.js';
 
-export async function parseFile(buffer, mimetype, originalname) {
-  const ext = (originalname || '').toLowerCase().split('.').pop();
+const SPREADSHEET_TYPES = new Set([
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+const SPREADSHEET_EXTS = new Set(['csv', 'xlsx', 'xls']);
 
-  if (
-    mimetype === 'application/pdf' ||
-    ext === 'pdf'
-  ) {
-    return parsePdf(buffer);
+export function parseFile(buffer, mimetype, filename) {
+  const ext = (filename || '').toLowerCase().split('.').pop();
+  if (!SPREADSHEET_TYPES.has(mimetype) && !SPREADSHEET_EXTS.has(ext)) {
+    throw new Error('Unsupported file type. Please upload a CSV or Excel spreadsheet (.csv, .xlsx, .xls).');
   }
-
-  if (
-    mimetype === 'text/csv' ||
-    mimetype === 'application/vnd.ms-excel' ||
-    mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-    ext === 'csv' ||
-    ext === 'xlsx' ||
-    ext === 'xls'
-  ) {
-    return parseSpreadsheet(buffer);
-  }
-
-  throw new Error(`Unsupported file type: ${mimetype || ext}. Please upload a PDF, CSV, or Excel file.`);
+  return parseSpreadsheet(buffer);
 }

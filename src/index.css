@@ -3,17 +3,47 @@
 }
 
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Backgrounds — layered dark */
+  --bg:        #0d1117;
+  --surface:   #161c2d;
+  --surface-2: #1c2338;
+  --surface-3: #242d45;
+
+  /* Borders */
+  --border:        #2d3a52;
+  --border-subtle: #1e2a3f;
+
+  /* Text */
+  --text-1: #f1f5f9;
+  --text-2: #8898aa;
+  --text-3: #4b5675;
+
+  /* Accent — vivid indigo, pops on dark */
+  --accent:          #818cf8;
+  --accent-hover:    #a5b4fc;
+  --accent-dim:      rgba(129, 140, 248, 0.12);
+  --accent-glow:     rgba(129, 140, 248, 0.22);
+  --accent-btn:      #6366f1;
+  --accent-btn-hover:#4f46e5;
+
+  /* Status */
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning:  #fbbf24;
+  --purple:   #a78bfa;
+  --cyan:     #22d3ee;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background: #f8fafc;
-  color: #111827;
+  background: var(--bg);
+  color: var(--text-1);
 }
 
 #root {
@@ -24,3 +54,9 @@ body {
 button, input, select, textarea {
   font-family: inherit;
 }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--surface-3); }

@@ -21,6 +21,23 @@ export async function ensureDataDir() {
   }
 }
 
+export async function getAllFingerprints() {
+  await ensureDataDir();
+  const files = (await readdir(DATA_DIR)).filter((f) => f.endsWith('.json'));
+  const fingerprints = new Set();
+  await Promise.all(
+    files.map(async (f) => {
+      try {
+        const { transactions = [] } = JSON.parse(await readFile(join(DATA_DIR, f), 'utf8'));
+        for (const t of transactions) {
+          if (t.fingerprint) fingerprints.add(t.fingerprint);
+        }
+      } catch { /* skip unreadable files */ }
+    })
+  );
+  return fingerprints;
+}
+
 export async function listStatements() {
   await ensureDataDir();
   const files = (await readdir(DATA_DIR)).filter((f) => f.endsWith('.json'));

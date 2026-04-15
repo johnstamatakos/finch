@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CATEGORIES } from '../../constants/categories.js';
 import { formatCurrency, formatDate } from '../../utils/formatters.js';
 import SaveModal from '../SaveModal/SaveModal.jsx';
+import CategorySelect from '../shared/CategorySelect.jsx';
 import './TransactionTable.css';
 
 export default function TransactionTable({
@@ -9,9 +10,11 @@ export default function TransactionTable({
   onUpdate,
   onViewDashboard,
   onBack,
-  onSave,        // (name) => void — called to save/update the statement
-  statementName, // string if viewing an existing saved statement
-  defaultSaveName, // suggested name for the save modal
+  onSave,           // (name) => void — called to save/update the statement
+  statementName,    // string if viewing an existing saved statement
+  defaultSaveName,  // suggested name for the save modal
+  allCategories,    // full list including user-created categories
+  onCreateCategory, // (name) => string — adds a new category, returns name
 }) {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
@@ -24,7 +27,12 @@ export default function TransactionTable({
   const totalDeposits = deposits.reduce((sum, t) => sum + t.amount, 0);
 
   const filtered = transactions.filter((t) => {
-    if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const inDesc = t.description.toLowerCase().includes(q);
+      const inActivity = (t.activity || '').toLowerCase().includes(q);
+      if (!inDesc && !inActivity) return false;
+    }
     if (filterCategory !== 'All' && t.category !== filterCategory) return false;
     if (filterType === 'Expenses' && t.isDeposit) return false;
     if (filterType === 'Deposits' && !t.isDeposit) return false;
@@ -98,7 +106,7 @@ export default function TransactionTable({
           onChange={(e) => setFilterCategory(e.target.value)}
         >
           <option value="All">All categories</option>
-          {CATEGORIES.map((c) => (
+          {(allCategories || CATEGORIES).map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
@@ -135,7 +143,8 @@ export default function TransactionTable({
                 <tr key={t.id} className={t.isDeposit ? 'row-deposit' : ''}>
                   <td className="col-date">{formatDate(t.date)}</td>
                   <td className="col-desc">
-                    {t.description}
+                    <span className="tx-source">{t.description}</span>
+                    {t.activity && <span className="tx-activity">{t.activity}</span>}
                     {t.isDeposit && <span className="deposit-badge">Deposit</span>}
                   </td>
                   <td className={`col-amount ${t.isDeposit ? 'positive' : 'negative'}`}>
@@ -145,15 +154,12 @@ export default function TransactionTable({
                     {t.isDeposit ? (
                       <span className="deposit-tag">Income/Deposit</span>
                     ) : (
-                      <select
+                      <CategorySelect
                         value={t.category}
-                        onChange={(e) => onUpdate(t.id, { category: e.target.value })}
-                        className="category-select"
-                      >
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
+                        categories={allCategories || CATEGORIES}
+                        onChange={(cat) => onUpdate(t.id, { category: cat })}
+                        onCreateCategory={onCreateCategory}
+                      />
                     )}
                   </td>
                   <td className="col-recurring">

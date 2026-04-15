@@ -3,8 +3,8 @@
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: #fef2f2;
-  border: 1px solid #fca5a5;
+  background: var(--surface-2);
+  border: 1px solid rgba(248, 113, 113, 0.3);
   border-radius: 10px;
   padding: 14px 20px;
   display: flex;
@@ -13,13 +13,13 @@
   z-index: 999;
   max-width: 600px;
   width: calc(100% - 40px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .error-icon {
   width: 22px;
   height: 22px;
-  background: #ef4444;
+  background: var(--negative);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -32,7 +32,7 @@
 
 .error-message {
   flex: 1;
-  color: #991b1b;
+  color: var(--negative);
   font-size: 14px;
 }
 
@@ -41,9 +41,10 @@
   border: none;
   font-size: 22px;
   line-height: 1;
-  color: #9ca3af;
+  color: var(--text-3);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
+  transition: color 0.15s;
 }
-.error-close:hover { color: #374151; }
+.error-close:hover { color: var(--text-1); }

@@ -1,37 +1,37 @@
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
+
+function fingerprint(date, description, amount) {
+  const key = `${date}|${description.toLowerCase().trim()}|${amount}`;
+  return createHash('sha256').update(key).digest('hex').slice(0, 16);
+}
 
 const VALID_CATEGORIES = [
   'Auto', 'Home', 'Utilities', 'Credit Cards', 'Student Loans',
   'Subscriptions', 'Shopping', 'Groceries', 'Restaurants', 'Other',
 ];
 
-export function normalizeTransactions(rawTransactions) {
-  return rawTransactions.map((t) => {
+export function normalizeTransactions(transactions) {
+  return transactions.map((t) => {
     const amount = parseFloat(t.amount) || 0;
     const isDeposit = amount > 0;
 
     let category = t.category || 'Other';
-    if (!VALID_CATEGORIES.includes(category)) {
+    if (!VALID_CATEGORIES.includes(category) || isDeposit) {
       category = 'Other';
     }
 
-    // Parse and normalize date
-    let date = t.date || '';
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      const parsed = new Date(date);
-      if (!isNaN(parsed.getTime())) {
-        date = parsed.toISOString().split('T')[0];
-      } else {
-        date = '';
-      }
-    }
+    const description = String(t.source || t.description || '').trim();
+    const date = t.date || '';
+    const normalizedAmount = parseFloat(amount.toFixed(2));
 
     return {
       id: randomUUID(),
+      fingerprint: fingerprint(date, description, normalizedAmount),
       date,
-      description: String(t.description || '').trim(),
-      amount: parseFloat(amount.toFixed(2)),
-      category: isDeposit ? 'Other' : category,
+      description,
+      activity: String(t.activity || '').trim(),
+      amount: normalizedAmount,
+      category,
       isRecurring: Boolean(t.isRecurring),
       isDeposit,
     };

@@ -8,11 +8,11 @@ export default function UploadView({ onAnalyze, showBack, onBack }) {
   const inputRef = useRef(null);
 
   const handleFile = (f) => {
-    const allowed = ['application/pdf', 'text/csv', 'application/vnd.ms-excel',
+    const allowed = ['text/csv', 'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     const ext = f.name.split('.').pop().toLowerCase();
-    if (!allowed.includes(f.type) && !['pdf','csv','xlsx','xls'].includes(ext)) {
-      alert('Please upload a PDF, CSV, or Excel file.');
+    if (!allowed.includes(f.type) && !['csv','xlsx','xls'].includes(ext)) {
+      alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls).');
       return;
     }
     setFile(f);
@@ -53,15 +53,13 @@ export default function UploadView({ onAnalyze, showBack, onBack }) {
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.csv,.xlsx,.xls"
+            accept=".csv,.xlsx,.xls"
             style={{ display: 'none' }}
             onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
           />
           {file ? (
             <>
-              <div className="file-icon">
-                {file.name.endsWith('.pdf') ? '📄' : '📊'}
-              </div>
+              <div className="file-icon">📊</div>
               <p className="file-name">{file.name}</p>
               <p className="file-size">{(file.size / 1024).toFixed(0)} KB — click to change</p>
             </>
@@ -69,7 +67,7 @@ export default function UploadView({ onAnalyze, showBack, onBack }) {
             <>
               <div className="upload-icon">↑</div>
               <p className="drop-label">Drop your statement here</p>
-              <p className="drop-sub">PDF, CSV, or Excel · up to 10 MB</p>
+              <p className="drop-sub">CSV or Excel · up to 10 MB</p>
             </>
           )}
         </div>
@@ -97,7 +95,7 @@ export default function UploadView({ onAnalyze, showBack, onBack }) {
       </form>
 
       <p className="upload-note">
-        Tip: Export your statement as a PDF or CSV from your bank's website. Scanned image PDFs won't work.
+        Tip: Export your statement as a CSV or Excel file from your bank's website.
       </p>
     </div>
   );

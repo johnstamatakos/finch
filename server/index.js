@@ -12,7 +12,11 @@ import {
   getStatement,
   updateStatement,
   deleteStatement,
+  getAllFingerprints,
 } from './utils/statementStore.js';
+import { learnFromTransactions, applyRules } from './utils/rulesStore.js';
+import { generateInsights } from './ai/insightsAnalyzer.js';
+import { getCachedInsights, setCachedInsights, clearInsightsCache } from './utils/insightsCache.js';
 
 const app = express();
 app.use(cors());
@@ -33,7 +37,8 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
 
     const rawData = await parseFile(buffer, mimetype, originalname);
     const rawTransactions = await analyzeTransactions(rawData);
-    const transactions = normalizeTransactions(rawTransactions);
+    const normalized = normalizeTransactions(rawTransactions);
+    const transactions = await applyRules(normalized);
 
     return res.json({ transactions, monthlyIncome });
   } catch (err) {
@@ -62,9 +67,21 @@ app.post('/api/statements', async (req, res) => {
     if (!name || !Array.isArray(transactions)) {
       return res.status(400).json({ error: 'name and transactions are required.' });
     }
-    const statement = await saveStatement({ name, monthlyIncome: monthlyIncome || 0, transactions });
+    const existingFingerprints = await getAllFingerprints();
+    const unique = transactions.filter((t) => !existingFingerprints.has(t.fingerprint));
+    const duplicateCount = transactions.length - unique.length;
+
+    if (unique.length === 0) {
+      return res.status(409).json({
+        error: `All ${duplicateCount} transaction${duplicateCount === 1 ? '' : 's'} already exist in your saved statements.`,
+      });
+    }
+
+    const statement = await saveStatement({ name, monthlyIncome: monthlyIncome || 0, transactions: unique });
+    await learnFromTransactions(unique);
+    await clearInsightsCache();
     const { transactions: _tx, ...meta } = statement;
-    return res.status(201).json(meta);
+    return res.status(201).json({ ...meta, duplicateCount });
   } catch (err) {
     console.error('Error in POST /api/statements:', err.message);
     return res.status(500).json({ error: err.message });
@@ -93,6 +110,8 @@ app.put('/api/statements/:id', async (req, res) => {
     }
     const updated = await updateStatement(req.params.id, { name, monthlyIncome, transactions });
     if (!updated) return res.status(404).json({ error: 'Statement not found.' });
+    await learnFromTransactions(transactions);
+    await clearInsightsCache();
     const { transactions: _tx, ...meta } = updated;
     return res.json(meta);
   } catch (err) {
@@ -107,11 +126,37 @@ app.delete('/api/statements/:id', async (req, res) => {
   try {
     const deleted = await deleteStatement(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Statement not found.' });
+    await clearInsightsCache();
     return res.json({ ok: true });
   } catch (err) {
     if (err.message === 'Invalid statement id.') return res.status(400).json({ error: err.message });
     console.error('Error in DELETE /api/statements/:id:', err.message);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AI Insights ───────────────────────────────────────────────────────────────
+app.post('/api/insights', async (req, res) => {
+  try {
+    const { statements, force } = req.body;
+    if (!Array.isArray(statements) || statements.length === 0) {
+      return res.status(400).json({ error: 'statements array required.' });
+    }
+
+    const ids = statements.map((s) => s.id);
+
+    if (!force) {
+      const cached = await getCachedInsights(ids);
+      if (cached) return res.json(cached);
+    }
+
+    const insights = await generateInsights(statements);
+    const result = { insights, generatedAt: new Date().toISOString() };
+    await setCachedInsights(ids, insights);
+    return res.json(result);
+  } catch (err) {
+    console.error('Error in POST /api/insights:', err.message);
+    return res.status(500).json({ error: err.message || 'Failed to generate insights.' });
   }
 });
 
