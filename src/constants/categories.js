@@ -9,6 +9,7 @@ export const CATEGORIES = [
   'Groceries',
   'Restaurants',
   'Other',
+  'Transfers',
 ];
 
 export const CATEGORY_COLORS = {
@@ -22,4 +23,5 @@ export const CATEGORY_COLORS = {
   Groceries: '#22c55e',
   Restaurants: '#e11d48',
   Other: '#94a3b8',
+  Transfers: '#64748b',
 };

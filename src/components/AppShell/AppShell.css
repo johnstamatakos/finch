@@ -67,10 +67,46 @@
   font-weight: 600;
 }
 
-/* Upload CTA */
+/* Upload CTA + Sync */
 .shell-actions {
   flex-shrink: 0;
   margin-left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shell-sync-btn {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.shell-sync-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-1);
+  border-color: var(--accent-glow);
+}
+
+.shell-sync-btn.connected {
+  border-color: var(--positive);
+  color: var(--positive);
+}
+
+.shell-sync-btn.connected:hover:not(:disabled) {
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.shell-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .shell-upload-btn {

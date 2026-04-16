@@ -26,16 +26,22 @@ export function normalizeMerchantKey(source) {
   // 2. Strip trailing US state abbreviation
   if (STATE_ABBR_RE.test(s)) {
     s = s.replace(STATE_ABBR_RE, '');
-    // Strip any immediately-preceding all-alpha "city" words (1–3 words)
+    // Strip the single city word immediately before the state abbreviation.
+    // Capped at 1 word — prefix matching compensates for anything left over, and
+    // stripping more than one word risks eating merchant name words:
+    // "MY PENN MEDICINE PHILADELPHIA PA" → strip only "PHILADELPHIA", keep "MY PENN MEDICINE".
+    // "LOC CITIZENSONE LOAN BRIDGEPORT CT" → strip only "BRIDGEPORT", leave "LOAN" for prefix match.
     // Only remove words that are purely alphabetic — preserves brand chars like ., *, #
-    s = s.replace(/(\s+[A-Za-z]{2,}){1,3}\s*$/, (match) => {
+    s = s.replace(/(\s+[A-Za-z]{2,}){1,1}\s*$/, (match) => {
       const words = match.trim().split(/\s+/);
       return words.every((w) => /^[A-Za-z]+$/.test(w)) ? '' : match;
     });
   }
 
-  // 3. Strip trailing store / reference codes (digit-heavy suffixes)
-  s = s.replace(/[\s#]+\d[\d\s\-#./]*$/, '');
+  // 3. Strip trailing store / reference codes (digit-heavy suffixes).
+  //    Also handles bank patterns like "amazon.com*702" where * separates the
+  //    merchant name from a transaction reference code.
+  s = s.replace(/[\s#*]+\d[\d\s\-#./]*$/, '');
 
   // 4. Lowercase and normalise whitespace
   return s.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -98,25 +104,38 @@ export async function deleteRule(merchantOrKey) {
  * Apply saved rules to a list of transactions.
  * Uses prefix matching so "sunoco" matches "sunoco 0338384100".
  * Longest matching key wins (more specific beats generic).
+ *
+ * Space-collapsed fallback: multi-word rule keys are also compared with spaces
+ * removed, so "disney plus" matches both "disney plus" and "disneyplus" transactions.
+ * Only applies to multi-word keys to avoid single-word rules over-matching.
  */
 export async function applyRules(transactions) {
   const rules = await loadRules();
   const ruleKeys = Object.keys(rules);
   if (ruleKeys.length === 0) return transactions;
 
+  // Precompute collapsed (no-space) forms for multi-word keys
+  const collapsedKeys = Object.fromEntries(
+    ruleKeys.filter((k) => k.includes(' ')).map((k) => [k, k.replace(/\s+/g, '')])
+  );
+
   return transactions.map((t) => {
     if (t.isDeposit) return { ...t, ruleApplied: false };
 
     const norm = normalizeMerchantKey(t.description);
+    const normCollapsed = norm.replace(/\s+/g, '');
 
     // Find longest matching rule key (prefix match with word-boundary check)
     let bestKey = null;
     let bestLen = 0;
     for (const key of ruleKeys) {
       if (key.length <= bestLen) continue;
+      const kc = collapsedKeys[key]; // defined only for multi-word keys
       if (
         norm === key ||
-        (norm.startsWith(key) && norm[key.length] === ' ')
+        (norm.startsWith(key) && (norm[key.length] === ' ' || norm[key.length] === '*')) ||
+        // Space-collapsed match: "disney plus" ↔ "disneyplus"
+        (kc && (normCollapsed === kc || normCollapsed.startsWith(kc)))
       ) {
         bestKey = key;
         bestLen = key.length;

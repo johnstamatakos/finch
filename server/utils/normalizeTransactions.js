@@ -7,7 +7,7 @@ function fingerprint(date, description, amount) {
 
 const VALID_CATEGORIES = [
   'Auto', 'Home', 'Utilities', 'Credit Cards', 'Student Loans',
-  'Subscriptions', 'Shopping', 'Groceries', 'Restaurants', 'Other',
+  'Subscriptions', 'Shopping', 'Groceries', 'Restaurants', 'Other', 'Transfers',
 ];
 
 export function normalizeTransactions(transactions) {

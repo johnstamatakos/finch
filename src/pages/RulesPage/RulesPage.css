@@ -87,90 +87,180 @@
   font-style: italic;
 }
 
-.rules-refine-section {
+/* ── Suggestion cards ──────────────────────────────────────────────────────── */
+.rules-suggestions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.rules-refine-section h3 {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-2);
-  margin: 0 0 2px;
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.rules-refine-badge {
-  background: var(--negative);
-  color: white;
+.sg-card {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.sg-card-approved { border-color: var(--positive); background: rgba(52,211,153,0.05); }
+.sg-card-denied   { opacity: 0.45; }
+.sg-card-done     { border-color: var(--border-subtle); opacity: 0.6; }
+
+/* Badge */
+.sg-badge {
   font-size: 10px;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 10px;
-  letter-spacing: 0;
-  text-transform: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
 }
-.rules-refine-badge.warn { background: var(--warning); color: #1a1a1a; }
-.rules-refine-badge.info { background: var(--accent); }
+.sg-badge-red    { background: rgba(248,113,113,0.15); color: var(--negative); }
+.sg-badge-accent { background: var(--accent-dim); color: var(--accent-hover); }
+.sg-badge-warn   { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.sg-badge-orange { background: rgba(251,146,60,0.15); color: #fb923c; }
 
-.rules-refine-hint {
-  font-size: 12px;
-  color: var(--text-3);
-  margin: 0 0 4px;
-}
-
-.rules-refine-row {
+/* Header row */
+.sg-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 5px 6px;
-  border-radius: 7px;
-  transition: background 0.1s;
-}
-.rules-refine-row:hover { background: var(--surface-2); }
-.rules-refine-row input { cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
-
-.rules-refine-conflict {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  padding: 5px 6px;
   flex-wrap: wrap;
 }
 
-.rules-refine-key {
-  font-family: monospace;
+/* Change visualization */
+.sg-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 12px;
+}
+
+.sg-key {
+  font-family: monospace;
+  font-size: 11px;
   background: var(--surface-3);
   color: var(--text-1);
   padding: 2px 7px;
   border-radius: 5px;
 }
-.rules-refine-key.covered { color: var(--accent); }
 
-.rules-refine-arrow {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.rules-refine-cat {
+.sg-cat {
   font-size: 12px;
   color: var(--text-2);
   font-weight: 600;
 }
+.sg-cat.old { color: var(--negative); text-decoration: line-through; opacity: 0.8; }
+.sg-cat.new { color: var(--positive); }
 
-.rules-refine-reason {
+.sg-tag {
+  font-family: monospace;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-weight: 600;
+}
+.sg-tag.delete { background: rgba(248,113,113,0.15); color: var(--negative); }
+.sg-tag.keep   { background: rgba(52,211,153,0.12); color: var(--positive); }
+
+.sg-arrow {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.sg-recurring-tag {
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* Reason */
+.sg-reason {
   font-size: 12px;
   color: var(--text-3);
   font-style: italic;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Action buttons */
+.sg-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.sg-btn-approve {
+  background: rgba(52,211,153,0.1);
+  border: 1.5px solid var(--positive);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--positive);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sg-btn-approve:hover { background: rgba(52,211,153,0.2); }
+
+.sg-btn-keep {
+  background: var(--accent-dim);
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  cursor: pointer;
+  font-family: monospace;
+  transition: background 0.15s;
+}
+.sg-btn-keep:hover { background: var(--accent-btn); color: white; }
+
+.sg-btn-deny {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.sg-btn-deny:hover { border-color: var(--text-2); color: var(--text-2); }
+
+.sg-btn-undo {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.sg-btn-undo.sg-approved { border-color: var(--positive); color: var(--positive); }
+.sg-btn-undo.sg-denied   { border-color: var(--border); color: var(--text-3); }
+.sg-btn-undo:hover       { opacity: 0.75; }
+
+.sg-done {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--positive);
+}
+
+/* Pending counter */
+.rules-refine-pending {
+  font-size: 12px;
+  color: var(--text-3);
   flex: 1;
 }
 
@@ -182,7 +272,7 @@
 }
 
 .rules-refine-apply {
-  background: var(--negative);
+  background: var(--accent-btn);
   color: white;
   border: none;
   border-radius: 8px;
@@ -192,7 +282,8 @@
   cursor: pointer;
   transition: opacity 0.15s;
 }
-.rules-refine-apply:hover { opacity: 0.85; }
+.rules-refine-apply:hover:not(:disabled) { opacity: 0.85; }
+.rules-refine-apply:disabled { opacity: 0.4; cursor: default; }
 
 .rules-refine-close {
   background: none;
@@ -276,8 +367,23 @@
 }
 
 /* Edit mode cells */
+.rules-merchant-edit { }
 .rules-cat-edit { width: 160px; }
 .rules-recurring-edit { width: 110px; }
+
+.rules-edit-key {
+  font-family: monospace;
+  font-size: 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  outline: none;
+  width: 100%;
+  min-width: 180px;
+}
+.rules-edit-key:focus { border-color: var(--accent-hover); }
 
 .rules-edit-select {
   width: 100%;

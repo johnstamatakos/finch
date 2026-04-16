@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { usePlaidLink } from 'react-plaid-link';
 import AppShell from './components/AppShell/AppShell.jsx';
 import UploadModal from './components/UploadModal/UploadModal.jsx';
 import ReviewModal from './components/ReviewModal/ReviewModal.jsx';
@@ -24,7 +25,12 @@ export default function App() {
 
   // ── Upload + Review flow ─────────────────────────────────────────────────
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [reviewData, setReviewData] = useState(null); // { groups: [{ ym, name, transactions }] }
+  const [reviewData, setReviewData] = useState(null); // { groups: [{ ym, name, transactions, existingStatementId? }] }
+
+  // ── Plaid bank sync ──────────────────────────────────────────────────────
+  const [isConnected, setIsConnected] = useState(false);
+  const [syncState, setSyncState] = useState('idle'); // 'idle' | 'linking' | 'syncing'
+  const [linkToken, setLinkToken] = useState(null);
 
   // ── Transaction filters ───────────────────────────────────────────────────
   const [txFilters, setTxFilters] = useState({
@@ -49,9 +55,40 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // ── Plaid Link setup ─────────────────────────────────────────────────────
+  const handlePlaidSuccess = useCallback(async (publicToken) => {
+    setSyncState('syncing');
+    try {
+      const exchRes = await fetch('/api/plaid/exchange-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicToken }),
+      });
+      if (!exchRes.ok) throw new Error('Failed to connect account.');
+      setIsConnected(true);
+      setLinkToken(null);
+      await handleSync();
+    } catch (err) {
+      setError(err.message);
+      setSyncState('idle');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { open: openPlaidLink, ready: plaidReady } = usePlaidLink({
+    token: linkToken,
+    onSuccess: handlePlaidSuccess,
+    onExit: () => { setSyncState('idle'); setLinkToken(null); },
+  });
+
+  // Open Plaid Link as soon as the token is ready
+  useEffect(() => {
+    if (linkToken && plaidReady) openPlaidLink();
+  }, [linkToken, plaidReady, openPlaidLink]);
+
   // ── Load statements on mount ─────────────────────────────────────────────
   useEffect(() => {
     refreshStatements();
+    fetch('/api/plaid/status').then((r) => r.json()).then((d) => setIsConnected(!!d.connected)).catch(() => {});
   }, []);
 
   const refreshStatements = () =>
@@ -73,13 +110,55 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Analysis failed. Please try again.');
 
-      // Split into per-month groups automatically
-      setReviewData({ groups: splitByMonth(data.transactions) });
+      // Split into per-month groups automatically (duplicates already filtered server-side)
+      setReviewData({
+        groups: splitByMonth(data.transactions),
+        duplicateCount: data.duplicateCount || 0,
+      });
     } catch (err) {
       setError(err.message);
       setUploadOpen(true); // reopen so they can retry
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ── Plaid sync ───────────────────────────────────────────────────────────
+  const handleSync = async () => {
+    setSyncState('syncing');
+    setError(null);
+    try {
+      const res = await fetch('/api/plaid/sync', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Sync failed.');
+      if (data.groups && data.groups.length > 0) {
+        setReviewData({ groups: data.groups, duplicateCount: data.duplicateCount || 0 });
+      } else {
+        setError(data.message || 'No new transactions found.');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncState('idle');
+    }
+  };
+
+  const handleSyncClick = async () => {
+    if (syncState !== 'idle') return;
+    if (isConnected) {
+      await handleSync();
+    } else {
+      setSyncState('linking');
+      setError(null);
+      try {
+        const res = await fetch('/api/plaid/link-token', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to connect to bank.');
+        setLinkToken(data.linkToken); // triggers useEffect → openPlaidLink()
+      } catch (err) {
+        setError(err.message);
+        setSyncState('idle');
+      }
     }
   };
 
@@ -95,19 +174,32 @@ export default function App() {
 
       // Save sequentially so fingerprint dedup works correctly across months
       for (const group of groups) {
-        const res = await fetch('/api/statements', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: group.name, monthlyIncome: 0, transactions: group.transactions }),
-        });
-        const data = await res.json();
-        if (res.status === 409) {
-          skippedCount++;
-        } else if (!res.ok) {
-          throw new Error(data.error || 'Save failed.');
-        } else {
+        if (group.existingStatementId) {
+          // Plaid sync: append new transactions to existing month statement
+          const res = await fetch(`/api/statements/${group.existingStatementId}/append`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactions: group.transactions }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Append failed.');
           savedCount++;
-          totalDupes += data.duplicateCount || 0;
+          totalDupes += group.transactions.length - (data.appendedCount || 0);
+        } else {
+          const res = await fetch('/api/statements', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: group.name, monthlyIncome: 0, transactions: group.transactions }),
+          });
+          const data = await res.json();
+          if (res.status === 409) {
+            skippedCount++;
+          } else if (!res.ok) {
+            throw new Error(data.error || 'Save failed.');
+          } else {
+            savedCount++;
+            totalDupes += data.duplicateCount || 0;
+          }
         }
       }
 
@@ -305,6 +397,9 @@ export default function App() {
         page={page}
         onPageChange={setPage}
         onUpload={() => setUploadOpen(true)}
+        onSync={handleSyncClick}
+        syncing={syncState !== 'idle'}
+        isConnected={isConnected}
         sidebar={sidebar}
       >
         {page === 'dashboard' && (
@@ -347,6 +442,7 @@ export default function App() {
       {reviewData && (
         <ReviewModal
           groups={reviewData.groups}
+          duplicateCount={reviewData.duplicateCount}
           allCategories={allCategories}
           onCreateCategory={addCategory}
           onSave={handleSaveNew}

@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { key: 'rules',        label: 'Rules',          icon: '⚙' },
 ];
 
-export default function AppShell({ page, onPageChange, onUpload, sidebar, children }) {
+export default function AppShell({ page, onPageChange, onUpload, onSync, syncing, isConnected, sidebar, children }) {
   return (
     <div className="shell">
       <header className="shell-header">
@@ -28,6 +28,14 @@ export default function AppShell({ page, onPageChange, onUpload, sidebar, childr
         </nav>
 
         <div className="shell-actions">
+          <button
+            className={`shell-sync-btn${isConnected ? ' connected' : ''}`}
+            onClick={onSync}
+            disabled={syncing}
+            title={isConnected ? 'Sync new transactions from bank' : 'Connect your bank account'}
+          >
+            {syncing ? 'Syncing…' : isConnected ? '⟳ Sync' : '⟳ Connect Bank'}
+          </button>
           <button className="shell-upload-btn" onClick={onUpload}>
             + Upload
           </button>

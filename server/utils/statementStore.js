@@ -5,8 +5,9 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { deriveStatementMeta } from './deriveStatementMeta.js';
 
-// Always resolves to <repo-root>/data/statements regardless of CWD
-const DATA_DIR = fileURLToPath(new URL('../../data/statements', import.meta.url));
+// Use a separate directory for sandbox testing so fake data never touches real statements
+const dataSubdir = process.env.PLAID_ENV === 'sandbox' ? 'sandbox-statements' : 'statements';
+const DATA_DIR = fileURLToPath(new URL(`../../data/${dataSubdir}`, import.meta.url));
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -116,8 +117,8 @@ export async function patchStatement(id, patch) {
 }
 
 /**
- * Patch individual fields on a single transaction (e.g. flagged).
- * Does NOT recalculate statement summary — suitable for non-financial fields.
+ * Patch individual fields on a single transaction (e.g. flagged, category).
+ * Recalculates statement summary when financial fields change.
  */
 export async function patchTransaction(stmtId, txId, patch) {
   validateId(stmtId);
@@ -131,8 +132,51 @@ export async function patchTransaction(stmtId, txId, patch) {
     return t;
   });
   if (!updated) return null;
-  await writeFile(path, JSON.stringify({ ...stmt, transactions }, null, 2));
+  const FINANCIAL_FIELDS = ['category', 'amount', 'isDeposit'];
+  const needsSummaryUpdate = FINANCIAL_FIELDS.some((f) => f in patch);
+  const { period, summary } = needsSummaryUpdate
+    ? deriveStatementMeta(transactions, stmt.monthlyIncome)
+    : { period: stmt.period, summary: stmt.summary };
+  await writeFile(path, JSON.stringify({ ...stmt, transactions, period, summary }, null, 2));
   return updated;
+}
+
+export async function deleteTransaction(stmtId, txId) {
+  validateId(stmtId);
+  await ensureDataDir();
+  const path = join(DATA_DIR, `${stmtId}.json`);
+  if (!existsSync(path)) return null;
+  const stmt = JSON.parse(await readFile(path, 'utf8'));
+  const before = stmt.transactions.length;
+  const transactions = stmt.transactions.filter((t) => t.id !== txId);
+  if (transactions.length === before) return null; // not found
+  const { period, summary } = deriveStatementMeta(transactions, stmt.monthlyIncome);
+  const updated = { ...stmt, transactions, period, summary };
+  await writeFile(path, JSON.stringify(updated, null, 2));
+  return true;
+}
+
+/**
+ * Append new transactions to an existing statement.
+ * Deduplicates by fingerprint before merging.
+ * Recalculates summary after merge.
+ */
+export async function appendTransactions(id, newTransactions) {
+  validateId(id);
+  await ensureDataDir();
+  const path = join(DATA_DIR, `${id}.json`);
+  if (!existsSync(path)) return null;
+  const stmt = JSON.parse(await readFile(path, 'utf8'));
+
+  const existingFps = new Set(stmt.transactions.map((t) => t.fingerprint));
+  const unique = newTransactions.filter((t) => !existingFps.has(t.fingerprint));
+  if (unique.length === 0) return { ...stmt, appendedCount: 0 };
+
+  const transactions = [...stmt.transactions, ...unique];
+  const { period, summary } = deriveStatementMeta(transactions, stmt.monthlyIncome);
+  const updated = { ...stmt, transactions, period, summary };
+  await writeFile(path, JSON.stringify(updated, null, 2));
+  return { ...updated, appendedCount: unique.length };
 }
 
 export async function deleteStatement(id) {

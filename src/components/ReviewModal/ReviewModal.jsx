@@ -17,6 +17,7 @@ import './ReviewModal.css';
  */
 export default function ReviewModal({
   groups: initialGroups,
+  duplicateCount = 0,
   allCategories,
   onCreateCategory,
   onSave,
@@ -24,10 +25,9 @@ export default function ReviewModal({
 }) {
   const multiMonth = initialGroups.length > 1;
 
-  // Per-group state: { name, txns, goodExpanded }
+  // Per-group state: { txns, goodExpanded }
   const [groupStates, setGroupStates] = useState(() =>
     initialGroups.map((g) => ({
-      name: g.name,
       txns: g.transactions,
       goodExpanded: false,
     }))
@@ -41,6 +41,15 @@ export default function ReviewModal({
     setGroupStates((prev) =>
       prev.map((gs, i) => (i === activeIdx ? { ...gs, [prop]: value } : gs))
     );
+
+  const deleteTxn = (id) => {
+    setGroupStates((prev) =>
+      prev.map((gs, i) => {
+        if (i !== activeIdx) return gs;
+        return { ...gs, txns: gs.txns.filter((t) => t.id !== id) };
+      })
+    );
+  };
 
   const updateTxn = (id, updates) => {
     setGroupStates((prev) =>
@@ -65,7 +74,7 @@ export default function ReviewModal({
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   const handleSave = () =>
-    onSave(groupStates.map((gs) => ({ name: gs.name.trim() || gs.name, transactions: gs.txns })));
+    onSave(groupStates.map((gs, i) => ({ ...initialGroups[i], transactions: gs.txns })));
 
   // Count total "needs review" across all groups (for tab badges)
   const reviewCounts = useMemo(() =>
@@ -88,7 +97,7 @@ export default function ReviewModal({
                 className={`rm-tab${activeIdx === i ? ' active' : ''}`}
                 onClick={() => setActiveIdx(i)}
               >
-                {gs.name}
+                {initialGroups[i].name}
                 {reviewCounts[i] > 0 && (
                   <span className="rm-tab-badge">{reviewCounts[i]}</span>
                 )}
@@ -106,16 +115,10 @@ export default function ReviewModal({
             <span className="rm-meta">
               {active.txns.length} transactions · {formatCurrency(activeTotalExpenses)} expenses
               {multiMonth && ` · ${totalStatements} months`}
+              {duplicateCount > 0 && ` · ${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped`}
             </span>
           </div>
-          <input
-            className="rm-name-input"
-            type="text"
-            placeholder="Statement name…"
-            value={active.name}
-            onChange={(e) => setActiveProp('name', e.target.value)}
-            maxLength={80}
-          />
+          <span className="rm-period-label">{initialGroups[activeIdx].name}</span>
           <button className="rm-close" onClick={onClose} aria-label="Close">×</button>
         </div>
 
@@ -129,6 +132,8 @@ export default function ReviewModal({
                 <th className="rm-col-amount">Amount</th>
                 <th className="rm-col-cat">Category</th>
                 <th className="rm-col-rec">Recurring</th>
+                <th className="rm-col-flag"></th>
+                <th className="rm-col-del"></th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +141,7 @@ export default function ReviewModal({
               {needsReview.length > 0 && (
                 <>
                   <tr className="rm-section-row review">
-                    <td colSpan={5}>
+                    <td colSpan={7}>
                       <span className="rm-section-icon">⚠</span>
                       Needs Review
                       <span className="rm-section-badge">{needsReview.length}</span>
@@ -146,6 +151,7 @@ export default function ReviewModal({
                     <TxRow
                       key={t.id} t={t}
                       onUpdate={updateTxn}
+                      onDelete={deleteTxn}
                       allCategories={allCategories}
                       onCreateCategory={onCreateCategory}
                     />
@@ -160,7 +166,7 @@ export default function ReviewModal({
                     className="rm-section-row good clickable"
                     onClick={() => setActiveProp('goodExpanded', !active.goodExpanded)}
                   >
-                    <td colSpan={5}>
+                    <td colSpan={7}>
                       <span className="rm-section-icon">✓</span>
                       Looks Good
                       <span className="rm-section-badge">{looksGood.length}</span>
@@ -171,6 +177,7 @@ export default function ReviewModal({
                     <TxRow
                       key={t.id} t={t}
                       onUpdate={updateTxn}
+                      onDelete={deleteTxn}
                       allCategories={allCategories}
                       onCreateCategory={onCreateCategory}
                     />
@@ -218,7 +225,7 @@ export default function ReviewModal({
   );
 }
 
-function TxRow({ t, onUpdate, allCategories, onCreateCategory }) {
+function TxRow({ t, onUpdate, onDelete, allCategories, onCreateCategory }) {
   return (
     <tr className={`rm-row${t.isDeposit ? ' rm-row-deposit' : ''}`}>
       <td className="rm-col-date">{formatDate(t.date)}</td>
@@ -252,6 +259,27 @@ function TxRow({ t, onUpdate, allCategories, onCreateCategory }) {
             <span className="rm-toggle-slider" />
           </label>
         )}
+      </td>
+      <td className="rm-col-flag">
+        {!t.isDeposit && (
+          <button
+            className={`rm-flag-btn${t.flagged ? ' active' : ''}`}
+            onClick={() => onUpdate(t.id, { flagged: !t.flagged })}
+            title={t.flagged ? 'Remove flag' : 'Flag for review'}
+          >
+            🚩
+          </button>
+        )}
+      </td>
+      <td className="rm-col-del">
+        <button
+          className="rm-del-btn"
+          onClick={() => onDelete(t.id)}
+          title="Remove transaction"
+          aria-label="Remove transaction"
+        >
+          ×
+        </button>
       </td>
     </tr>
   );

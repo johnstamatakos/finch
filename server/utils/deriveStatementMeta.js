@@ -47,15 +47,24 @@ export function deriveStatementMeta(transactions, monthlyIncome) {
   let totalExpenses = 0;
   let totalDeposits = 0;
 
+  let totalTransfers = 0;
+
   for (const t of transactions) {
     const amt = Math.abs(t.amount);
     if (t.isDeposit) {
+      // Deposits always count as income — category is irrelevant for deposits
       totalDeposits += amt;
+    } else if (t.category === 'Transfers') {
+      // Expense-side transfers: not counted as spending, deducted from income instead
+      totalTransfers += amt;
     } else {
       totalExpenses += amt;
       byCategory[t.category] = (byCategory[t.category] || 0) + amt;
     }
   }
+
+  // Transfers reduce income — money sent to another account offsets incoming deposits
+  totalDeposits = Math.max(0, totalDeposits - totalTransfers);
 
   // Round all values to 2 decimal places
   for (const cat of Object.keys(byCategory)) {
