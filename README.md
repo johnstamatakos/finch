@@ -1,4 +1,6 @@
-<img width="512" height="280" alt="logo" src="https://github.com/user-attachments/assets/46c9e1e7-3f2e-4ada-94ab-e35fcb008a63" />
+<div align="center">
+  <img width="512" height="280" alt="logo" src="https://github.com/user-attachments/assets/46c9e1e7-3f2e-4ada-94ab-e35fcb008a63" />
+</div>
 
 # Finch
 
