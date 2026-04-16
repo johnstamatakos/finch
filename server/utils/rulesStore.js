@@ -2,8 +2,9 @@ import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 
-// Stored at <repo-root>/data/rules.json — covered by the data/ gitignore
-const RULES_PATH = fileURLToPath(new URL('../../data/rules.json', import.meta.url));
+// Sandbox and production each get their own rules file so test rules don't pollute real ones
+const rulesFile = process.env.PLAID_ENV === 'sandbox' ? 'sandbox-rules.json' : 'rules.json';
+const RULES_PATH = fileURLToPath(new URL(`../../data/${rulesFile}`, import.meta.url));
 
 // All US state + territory abbreviations — used to detect trailing location data
 const STATE_ABBR_RE =
