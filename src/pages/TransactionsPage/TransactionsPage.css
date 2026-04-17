@@ -220,6 +220,38 @@
   padding: 40px !important;
 }
 
+/* Recurring column */
+.tx-col-rec {
+  width: 72px;
+  text-align: center;
+}
+
+.tx-rec-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-3);
+  font-size: 15px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.tx-rec-btn:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.tx-rec-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(129, 140, 248, 0.1);
+}
+
 /* Delete column */
 .tx-col-del {
   width: 32px;
@@ -253,4 +285,5 @@
   .tx-source { max-width: 180px; }
   .tx-cat { width: 130px; }
   .tx-col-del { display: none; }
+  .tx-col-rec { display: none; }
 }

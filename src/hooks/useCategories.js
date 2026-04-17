@@ -23,7 +23,11 @@ export function useCategories() {
   const allCategories = [
     ...CATEGORIES,
     ...customCategories.filter((c) => !CATEGORIES.includes(c)),
-  ];
+  ].sort((a, b) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return a.localeCompare(b);
+  });
 
   const addCategory = (name) => {
     const trimmed = name.trim();

@@ -10,6 +10,7 @@ export default function TransactionsPage({
   selectedId,
   allCategories,
   onCreateCategory,
+  onStatementChange,
   filters = {},
 }) {
   const [txns, setTxns] = useState([]);
@@ -85,6 +86,16 @@ export default function TransactionsPage({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category: newCategory }),
+    }).then(() => onStatementChange?.());
+  };
+
+  const toggleRecurring = async (txn) => {
+    const newVal = !txn.isRecurring;
+    setTxns((prev) => prev.map((t) => (t.id === txn.id ? { ...t, isRecurring: newVal } : t)));
+    await fetch(`/api/statements/${txn._statementId}/transactions/${txn.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isRecurring: newVal }),
     });
   };
 
@@ -105,6 +116,7 @@ export default function TransactionsPage({
     await fetch(`/api/statements/${txn._statementId}/transactions/${txn.id}`, {
       method: 'DELETE',
     });
+    onStatementChange?.();
   };
 
   const flaggedCount = txns.filter((t) => t.flagged).length;
@@ -180,6 +192,7 @@ export default function TransactionsPage({
                 <th>Date</th>
                 <th>Description</th>
                 <th>Category</th>
+                <th className="tx-col-rec">Recurring</th>
                 <th className="tx-col-right">Amount</th>
                 <th className="tx-col-del"></th>
               </tr>
@@ -218,6 +231,18 @@ export default function TransactionsPage({
                         onChange={(cat) => updateTxn(t, cat)}
                         onCreateCategory={onCreateCategory}
                       />
+                    )}
+                  </td>
+                  <td className="tx-col-rec">
+                    {!t.isDeposit && (
+                      <button
+                        className={`tx-rec-btn${t.isRecurring ? ' active' : ''}`}
+                        onClick={() => toggleRecurring(t)}
+                        title={t.isRecurring ? 'Mark as one-time' : 'Mark as recurring'}
+                        aria-label={t.isRecurring ? 'Mark as one-time' : 'Mark as recurring'}
+                      >
+                        ↻
+                      </button>
                     )}
                   </td>
                   <td className={`tx-amount tx-col-right ${t.isDeposit ? 'pos' : 'neg'}`}>

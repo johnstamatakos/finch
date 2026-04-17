@@ -416,6 +416,7 @@ export default function App() {
             selectedId={selectedId}
             allCategories={allCategories}
             onCreateCategory={addCategory}
+            onStatementChange={refreshStatements}
             filters={txFilters}
           />
         )}

@@ -175,10 +175,11 @@ app.delete('/api/statements/:stmtId/transactions/:txId', async (req, res) => {
 app.patch('/api/statements/:stmtId/transactions/:txId', async (req, res) => {
   try {
     const { stmtId, txId } = req.params;
-    const { flagged, category } = req.body;
+    const { flagged, category, isRecurring } = req.body;
     const patch = {};
     if (typeof flagged === 'boolean') patch.flagged = flagged;
     if (typeof category === 'string') patch.category = category;
+    if (typeof isRecurring === 'boolean') patch.isRecurring = isRecurring;
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No patchable fields provided.' });
     }
