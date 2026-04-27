@@ -34,12 +34,31 @@ export default function RulesPage() {
   const [normalizeState, setNormalizeState] = useState('idle'); // idle | loading | done | error
   const [normalizeResult, setNormalizeResult] = useState(null);
 
-  const load = () =>
-    fetch('/api/rules')
-      .then((r) => r.json())
-      .then((data) => setRules(data || {}))
+  // Rule tester state
+  const [testerInput, setTesterInput] = useState('');
+  const [testerResult, setTesterResult] = useState(null); // null | { matched, key?, category?, isRecurring?, normalizedInput }
+  const [testerLoading, setTesterLoading] = useState(false);
+
+  // Suggest new rules state
+  const [suggestState, setSuggestState] = useState('idle'); // idle | loading | done | error
+  const [suggestItems, setSuggestItems] = useState([]); // [{ normalizedKey, count, exampleDescription, redundantRules, status }]
+
+  // Rule usage stats
+  const [ruleStats, setRuleStats] = useState({}); // { [key]: { matchCount, lastMatchedDate } }
+
+  const load = () => {
+    setLoading(true);
+    Promise.all([
+      fetch('/api/rules').then((r) => r.json()),
+      fetch('/api/rules/stats').then((r) => r.json()),
+    ])
+      .then(([rulesData, statsData]) => {
+        setRules(rulesData || {});
+        setRuleStats(statsData || {});
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
 
   useEffect(() => { load(); }, []);
 
@@ -159,6 +178,66 @@ export default function RulesPage() {
 
   const closeNormalize = () => { setNormalizeState('idle'); setNormalizeResult(null); };
 
+  // ── Rule tester ──────────────────────────────────────────────────────────────
+  const runTest = async (desc) => {
+    const d = (desc !== undefined ? desc : testerInput).trim();
+    if (!d) return;
+    if (desc !== undefined) setTesterInput(desc);
+    setTesterLoading(true);
+    setTesterResult(null);
+    try {
+      const res = await fetch('/api/rules/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: d }),
+      });
+      setTesterResult(await res.json());
+    } catch { setTesterResult(null); }
+    finally { setTesterLoading(false); }
+  };
+
+  // ── Suggest new rules ────────────────────────────────────────────────────────
+  const runSuggest = async () => {
+    setSuggestState('loading');
+    setSuggestItems([]);
+    try {
+      const res = await fetch('/api/rules/suggestions');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load suggestions.');
+      setSuggestItems((data || []).map((s) => ({ ...s, status: 'idle' }))); // status: idle | added | dismissed
+      setSuggestState('done');
+    } catch {
+      setSuggestState('error');
+    }
+  };
+
+  const closeSuggest = () => { setSuggestState('idle'); setSuggestItems([]); };
+
+  const addSuggestedRule = async (normalizedKey, category, isRecurring) => {
+    await fetch('/api/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: normalizedKey, category, isRecurring: isRecurring ?? false }),
+    });
+    setRules((prev) => ({ ...prev, [normalizedKey]: { category, isRecurring: isRecurring ?? false } }));
+    setSuggestItems((prev) =>
+      prev.map((s) => s.normalizedKey === normalizedKey ? { ...s, status: 'added' } : s)
+    );
+    // Reload stats so the new rule shows up in the table
+    fetch('/api/rules/stats').then((r) => r.json()).then((d) => setRuleStats(d || {})).catch(() => {});
+  };
+
+  const deleteRedundantRule = async (key) => {
+    await fetch(`/api/rules/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    setRules((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    setSuggestItems((prev) =>
+      prev.map((s) => ({
+        ...s,
+        redundantRules: s.redundantRules.filter((r) => r.key !== key),
+      }))
+    );
+  };
+
   // ── Category dropdown: base list + any category already in use in rules ─────
   const dropdownCategories = useMemo(() => {
     const inRules = Object.values(rules).map((v) => (typeof v === 'string' ? v : v.category));
@@ -202,6 +281,14 @@ export default function RulesPage() {
           title="Group similar merchant descriptions across all statements and standardize them to the most recent name and category"
         >
           {normalizeState === 'loading' ? '…' : normalizeState !== 'idle' ? '✕ Close' : '⟳ Normalize Merchants'}
+        </button>
+        <button
+          className="rules-suggest-btn"
+          onClick={suggestState === 'idle' ? runSuggest : closeSuggest}
+          disabled={suggestState === 'loading'}
+          title="Find high-frequency merchants across all statements that don't have a rule yet"
+        >
+          {suggestState === 'loading' ? '…' : suggestState !== 'idle' ? '✕ Close' : '+ Suggest New Rules'}
         </button>
         <button
           className="rules-refine-btn"
@@ -314,6 +401,89 @@ export default function RulesPage() {
         </div>
       )}
 
+      {/* ── Rule tester ── */}
+      <div className="rules-tester">
+        <div className="rules-tester-row">
+          <input
+            className="rules-tester-input"
+            type="text"
+            placeholder="Paste any raw transaction description to test against your rules…"
+            value={testerInput}
+            onChange={(e) => { setTesterInput(e.target.value); setTesterResult(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') runTest(); }}
+            spellCheck={false}
+          />
+          <button
+            className="rules-tester-btn"
+            onClick={() => runTest()}
+            disabled={!testerInput.trim() || testerLoading}
+          >
+            {testerLoading ? '…' : 'Test'}
+          </button>
+        </div>
+        {testerResult && (
+          <div className={`rules-tester-result ${testerResult.matched ? 'matched' : 'unmatched'}`}>
+            <span className="rules-tester-norm">
+              Normalized: <code>{testerResult.normalizedInput}</code>
+            </span>
+            {testerResult.matched ? (
+              <>
+                <span className="rules-tester-sep">·</span>
+                <span className="rules-tester-hit">
+                  Rule: <code>{testerResult.key}</code>
+                </span>
+                <span className="rules-tester-cat">
+                  {testerResult.category}
+                  {testerResult.isRecurring ? ' · recurring' : ''}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="rules-tester-sep">·</span>
+                <span className="rules-tester-miss">No rule matched — AI will categorize</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Suggest new rules panel ── */}
+      {suggestState !== 'idle' && (
+        <div className="rules-suggest-panel">
+          {suggestState === 'loading' && (
+            <p className="rules-suggest-status">Scanning all statements for unruled merchants…</p>
+          )}
+          {suggestState === 'error' && (
+            <p className="rules-suggest-status error">Failed to load suggestions.</p>
+          )}
+          {suggestState === 'done' && (
+            <>
+              {suggestItems.length === 0 ? (
+                <p className="rules-suggest-status">All frequent merchants already have a rule — great coverage.</p>
+              ) : (
+                <>
+                  <p className="rules-suggest-title">
+                    {suggestItems.length} merchant{suggestItems.length !== 1 ? 's' : ''} appear frequently without a rule:
+                  </p>
+                  <div className="rules-suggest-list">
+                    {suggestItems.map((s) => (
+                      <SuggestItem
+                        key={s.normalizedKey}
+                        item={s}
+                        allCategories={dropdownCategories}
+                        onTest={() => runTest(s.exampleDescription)}
+                        onAdd={(cat, recurring) => addSuggestedRule(s.normalizedKey, cat, recurring)}
+                        onDeleteRedundant={deleteRedundantRule}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Table ── */}
       {loading ? (
         <div className="rules-loading">Loading…</div>
@@ -331,14 +501,17 @@ export default function RulesPage() {
                 <th>Merchant key</th>
                 <th>Category</th>
                 <th>Recurring</th>
+                <th>Usage</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {entries.map(({ merchant, category, isRecurring }) => {
                 const isEditing = editingKey === merchant;
+                const stat = ruleStats[merchant];
+                const isStale = !isEditing && stat && stat.matchCount === 0;
                 return (
-                  <tr key={merchant} className={isEditing ? 'rules-row-editing' : ''}>
+                  <tr key={merchant} className={isEditing ? 'rules-row-editing' : isStale ? 'rules-row-stale' : ''}>
                     {isEditing ? (
                       <>
                         <td className="rules-merchant-edit">
@@ -371,6 +544,7 @@ export default function RulesPage() {
                             <span>recurring</span>
                           </label>
                         </td>
+                        <td />
                         <td className="rules-actions">
                           <div className="rules-edit-btns">
                             <button className="rules-save-btn" onClick={saveEdit}>Save</button>
@@ -385,6 +559,25 @@ export default function RulesPage() {
                         <td className="rules-recurring">
                           {isRecurring && <span className="rules-recurring-badge">↻ recurring</span>}
                         </td>
+                        <td className="rules-usage">
+                          {(() => {
+                            const s = ruleStats[merchant];
+                            if (!s || s.matchCount === 0) {
+                              return <span className="rules-usage-none">—</span>;
+                            }
+                            const daysAgo = s.lastMatchedDate
+                              ? Math.floor((Date.now() - new Date(s.lastMatchedDate)) / 86400000)
+                              : null;
+                            return (
+                              <span
+                                className="rules-usage-stat"
+                                title={`Last matched: ${s.lastMatchedDate}`}
+                              >
+                                {s.matchCount}x{daysAgo !== null ? ` · ${daysAgo}d ago` : ''}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="rules-actions">
                           <div className="rules-action-btns">
                             <button className="rules-edit-btn" onClick={() => startEdit(merchant, { category, isRecurring })}>Edit</button>
@@ -398,6 +591,76 @@ export default function RulesPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Suggest item ─────────────────────────────────────────────────────────────
+
+function SuggestItem({ item, allCategories, onTest, onAdd, onDeleteRedundant }) {
+  const { normalizedKey, count, redundantRules, status } = item;
+  const [selectedCat, setSelectedCat] = useState(allCategories[0] || '');
+  const [isRecurring, setIsRecurring] = useState(false);
+
+  if (status === 'added') {
+    return (
+      <div className="rules-suggest-item rules-suggest-item-done">
+        <span className="rules-suggest-key">{normalizedKey}</span>
+        <span className="rules-suggest-added">✓ Rule added</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rules-suggest-item">
+      <div className="rules-suggest-item-main">
+        <span className="rules-suggest-key">{normalizedKey}</span>
+        <span className="rules-suggest-count">{count}x</span>
+        <select
+          className="rules-suggest-cat-select"
+          value={selectedCat}
+          onChange={(e) => setSelectedCat(e.target.value)}
+        >
+          {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <label className="rules-suggest-recur">
+          <input
+            type="checkbox"
+            checked={isRecurring}
+            onChange={(e) => setIsRecurring(e.target.checked)}
+          />
+          recurring
+        </label>
+        <button className="rules-suggest-test-btn" onClick={onTest} title="Test in rule tester above">
+          Test
+        </button>
+        <button
+          className="rules-suggest-add-btn"
+          onClick={() => onAdd(selectedCat, isRecurring)}
+        >
+          Add Rule
+        </button>
+      </div>
+      {redundantRules.length > 0 && (
+        <div className="rules-suggest-redundant">
+          <span className="rules-suggest-redundant-label">
+            Adding this rule would subsume:
+          </span>
+          {redundantRules.map((r) => (
+            <span key={r.key} className="rules-suggest-redundant-item">
+              <code>{r.key}</code>
+              <span className="rules-suggest-redundant-cat">{r.category}</span>
+              <button
+                className="rules-suggest-redundant-del"
+                onClick={() => onDeleteRedundant(r.key)}
+                title="Delete this narrower rule since the new one would cover it"
+              >
+                Delete
+              </button>
+            </span>
+          ))}
         </div>
       )}
     </div>

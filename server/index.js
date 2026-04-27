@@ -25,7 +25,7 @@ import { groupMerchants } from './ai/merchantGrouper.js';
 import { plaidClient } from './plaid/plaidClient.js';
 import { getPlaidConfig, savePlaidConfig, hasPlaidConfig } from './utils/plaidStore.js';
 import { CountryCode, Products } from 'plaid';
-import { applyRules, getRules, setRule, deleteRule } from './utils/rulesStore.js';
+import { applyRules, getRules, setRule, deleteRule, normalizeMerchantKey } from './utils/rulesStore.js';
 import { getCategories, addCategory, deleteCategory } from './utils/categoriesStore.js';
 import { refineRules } from './ai/rulesRefiner.js';
 import { generateInsights } from './ai/insightsAnalyzer.js';
@@ -225,6 +225,136 @@ app.delete('/api/rules/:key', asyncHandler(async (req, res) => {
   const deleted = await deleteRule(decodeURIComponent(req.params.key));
   if (!deleted) return res.status(404).json({ error: 'Rule not found.' });
   return res.json({ ok: true });
+}));
+
+// ── Rule utilities ────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/rules/test  { description: string }
+ * Runs the exact same matching algorithm as applyRules and returns which rule
+ * (if any) would fire for the given raw transaction description.
+ */
+app.post('/api/rules/test', asyncHandler(async (req, res) => {
+  const { description } = req.body;
+  if (typeof description !== 'string') return res.status(400).json({ error: 'description required.' });
+  const rules = await getRules();
+  const ruleKeys = Object.keys(rules);
+  const norm = normalizeMerchantKey(description);
+
+  const collapsedKeys = Object.fromEntries(
+    ruleKeys.filter((k) => k.includes(' ')).map((k) => [k, k.replace(/\s+/g, '')])
+  );
+  const normCollapsed = norm.replace(/\s+/g, '');
+  let bestKey = null, bestLen = 0;
+  for (const key of ruleKeys) {
+    if (key.length <= bestLen) continue;
+    const kc = collapsedKeys[key];
+    if (
+      norm === key ||
+      (norm.startsWith(key) && (norm[key.length] === ' ' || norm[key.length] === '*')) ||
+      (kc && (normCollapsed === kc || normCollapsed.startsWith(kc)))
+    ) { bestKey = key; bestLen = key.length; }
+  }
+
+  if (bestKey) {
+    const rule = rules[bestKey];
+    return res.json({ matched: true, key: bestKey, category: rule.category, isRecurring: rule.isRecurring, normalizedInput: norm });
+  }
+  return res.json({ matched: false, normalizedInput: norm });
+}));
+
+/**
+ * GET /api/rules/suggestions
+ * Returns expense merchants appearing 2+ times across all statements with no
+ * matching rule, sorted by frequency. Also includes redundancy warnings: if a
+ * new rule for this merchant key would subsume an existing narrower rule.
+ */
+app.get('/api/rules/suggestions', asyncHandler(async (_req, res) => {
+  const [allStatements, rules] = await Promise.all([listStatements(), getRules()]);
+  const ruleKeys = Object.keys(rules);
+
+  const freq = new Map(); // normKey → { count, lastSeen, exampleDescription }
+  await Promise.all(allStatements.map(async (meta) => {
+    const stmt = await getStatement(meta.id);
+    if (!stmt) return;
+    for (const tx of (stmt.transactions || [])) {
+      if (tx.isDeposit || tx.ruleApplied) continue;
+      const norm = normalizeMerchantKey(tx.description);
+      if (!norm) continue;
+      const e = freq.get(norm) || { count: 0, lastSeen: '', exampleDescription: tx.description };
+      e.count += 1;
+      if (tx.date > e.lastSeen) { e.lastSeen = tx.date; e.exampleDescription = tx.description; }
+      freq.set(norm, e);
+    }
+  }));
+
+  const suggestions = Array.from(freq.entries())
+    .filter(([normKey, e]) => e.count >= 2 && !rules[normKey]) // skip keys that already have an exact rule
+    .sort(([, a], [, b]) => b.count - a.count)
+    .slice(0, 20)
+    .map(([normalizedKey, e]) => {
+      // Redundancy check: an existing rule R is subsumed by this new rule when
+      // the new key is a prefix of R (with word boundary). Every transaction that
+      // would have matched R will also match the new shorter key.
+      const redundantKeys = ruleKeys.filter((r) =>
+        r === normalizedKey ||
+        (r.startsWith(normalizedKey) && (r[normalizedKey.length] === ' ' || r[normalizedKey.length] === '*'))
+      );
+      return {
+        normalizedKey,
+        count: e.count,
+        lastSeen: e.lastSeen,
+        exampleDescription: e.exampleDescription,
+        redundantRules: redundantKeys.map((r) => ({ key: r, ...rules[r] })),
+      };
+    });
+
+  return res.json(suggestions);
+}));
+
+/**
+ * GET /api/rules/stats
+ * For each rule key, returns how many transactions across all statements it has
+ * matched and when the most recent match was. Uses the same matching algorithm
+ * as applyRules so counts are accurate.
+ */
+app.get('/api/rules/stats', asyncHandler(async (_req, res) => {
+  const [allStatements, rules] = await Promise.all([listStatements(), getRules()]);
+  const ruleKeys = Object.keys(rules);
+  if (ruleKeys.length === 0) return res.json({});
+
+  const collapsedKeys = Object.fromEntries(
+    ruleKeys.filter((k) => k.includes(' ')).map((k) => [k, k.replace(/\s+/g, '')])
+  );
+  const stats = Object.fromEntries(ruleKeys.map((k) => [k, { matchCount: 0, lastMatchedDate: null }]));
+
+  await Promise.all(allStatements.map(async (meta) => {
+    const stmt = await getStatement(meta.id);
+    if (!stmt) return;
+    for (const tx of (stmt.transactions || [])) {
+      if (!tx.ruleApplied || tx.isDeposit) continue;
+      const norm = normalizeMerchantKey(tx.description);
+      const normCollapsed = norm.replace(/\s+/g, '');
+      let bestKey = null, bestLen = 0;
+      for (const key of ruleKeys) {
+        if (key.length <= bestLen) continue;
+        const kc = collapsedKeys[key];
+        if (
+          norm === key ||
+          (norm.startsWith(key) && (norm[key.length] === ' ' || norm[key.length] === '*')) ||
+          (kc && (normCollapsed === kc || normCollapsed.startsWith(kc)))
+        ) { bestKey = key; bestLen = key.length; }
+      }
+      if (bestKey && stats[bestKey]) {
+        stats[bestKey].matchCount += 1;
+        if (!stats[bestKey].lastMatchedDate || tx.date > stats[bestKey].lastMatchedDate) {
+          stats[bestKey].lastMatchedDate = tx.date;
+        }
+      }
+    }
+  }));
+
+  return res.json(stats);
 }));
 
 // ── Statements append (used by Plaid sync save) ───────────────────────────────
