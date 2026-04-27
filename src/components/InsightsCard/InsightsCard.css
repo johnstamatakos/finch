@@ -195,14 +195,14 @@
   border-color: rgba(251, 191, 36, 0.15);
 }
 .insights-item-warning .insights-icon { color: var(--warning); }
-.insights-item-warning .insights-msg  { color: #f5d67a; }
+.insights-item-warning .insights-msg  { color: var(--warning); }
 
 .insights-item-positive {
   background: rgba(52, 211, 153, 0.06);
   border-color: rgba(52, 211, 153, 0.15);
 }
 .insights-item-positive .insights-icon { color: var(--positive); }
-.insights-item-positive .insights-msg  { color: #6ee7b7; }
+.insights-item-positive .insights-msg  { color: var(--positive); }
 
 .insights-item-info {
   background: rgba(129, 140, 248, 0.06);

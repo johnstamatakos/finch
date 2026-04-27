@@ -5,6 +5,8 @@ import { useRuleToast } from '../../hooks/useRuleToast.js';
 import { formatCurrency, formatDate } from '../../utils/formatters.js';
 import './TransactionsPage.css';
 
+const PAGE_SIZE = 100;
+
 export default function TransactionsPage({
   statements,
   selectedId,
@@ -16,6 +18,7 @@ export default function TransactionsPage({
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const { pendingRule, triggerToast, saveRule, dismissToast } = useRuleToast();
 
   const {
@@ -119,6 +122,13 @@ export default function TransactionsPage({
     onStatementChange?.();
   };
 
+  // Reset to page 1 whenever filters/search change
+  useEffect(() => { setPage(1); }, [filtered]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart  = (page - 1) * PAGE_SIZE;
+  const paginated  = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
   const flaggedCount = txns.filter((t) => t.flagged).length;
 
   const transferAmount = filtered
@@ -145,7 +155,15 @@ export default function TransactionsPage({
       <div className="tx-header">
         <div className="tx-header-left">
           <h1>Transactions</h1>
-          {!loading && <span className="tx-count">{filtered.length} shown</span>}
+          {!loading && (
+            <span className="tx-count">
+              {filtered.length === 0
+                ? '0 transactions'
+                : filtered.length <= PAGE_SIZE
+                ? `${filtered.length} transactions`
+                : `${pageStart + 1}–${Math.min(pageStart + PAGE_SIZE, filtered.length)} of ${filtered.length}`}
+            </span>
+          )}
           {!loading && flaggedCount > 0 && (
             <span className="tx-flag-count">🚩 {flaggedCount} flagged</span>
           )}
@@ -198,7 +216,7 @@ export default function TransactionsPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t) => (
+              {paginated.map((t) => (
                 <tr
                   key={t.id}
                   className={[
@@ -267,6 +285,26 @@ export default function TransactionsPage({
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <div className="tx-pagination">
+          <button
+            className="tx-page-btn"
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            ← Prev
+          </button>
+          <span className="tx-page-info">Page {page} of {totalPages}</span>
+          <button
+            className="tx-page-btn"
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next →
+          </button>
         </div>
       )}
 

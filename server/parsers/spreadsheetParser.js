@@ -1,5 +1,9 @@
 import * as XLSX from 'xlsx';
 
+const MAX_HEADER_SCAN_ROWS  = 30;   // how far down to search for the real header row
+const MAX_TRANSACTIONS      = 1000; // hard cap per file to prevent memory exhaustion
+const FALLBACK_SAMPLE_ROWS  = 20;   // rows sampled when guessing the description column
+
 // Column name keyword lists (lowercase, word-based)
 const DATE_KEYS     = ['date', 'posted date', 'post date', 'transaction date', 'trans date', 'value date', 'activity date'];
 const SOURCE_KEYS   = ['description', 'merchant', 'payee', 'memo', 'name', 'narrative', 'details',
@@ -55,7 +59,7 @@ const ALL_KEYS = [
 
 /** Scan raw rows (2-D array) to find the row index that looks like real column headers */
 function findHeaderRow(raw) {
-  for (let i = 0; i < Math.min(raw.length, 30); i++) {
+  for (let i = 0; i < Math.min(raw.length, MAX_HEADER_SCAN_ROWS); i++) {
     const cells = raw[i].map((c) => String(c).toLowerCase().trim());
     const hits = cells.filter((cell) =>
       ALL_KEYS.some((k) => cell === k || cell.includes(k))
@@ -112,7 +116,7 @@ export function parseSpreadsheet(buffer) {
 
   // Fallback: pick the longest-text column as source
   if (!sourceCol) {
-    const sample = allRows.slice(0, 20);
+    const sample = allRows.slice(0, FALLBACK_SAMPLE_ROWS);
     const best = headers
       .filter((h) => sample.some((r) => {
         const v = String(r[h] || '');
@@ -128,7 +132,7 @@ export function parseSpreadsheet(buffer) {
 
   const transactions = [];
 
-  for (const row of allRows.slice(0, 1000)) {
+  for (const row of allRows.slice(0, MAX_TRANSACTIONS)) {
     const source = String(row[sourceCol] || '').trim();
     if (!source) continue;
 

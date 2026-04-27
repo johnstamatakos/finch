@@ -130,6 +130,44 @@
   white-space: nowrap;
 }
 
+.rm-cutoff {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.rm-cutoff-label {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.rm-cutoff-input {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12px;
+}
+.rm-cutoff-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+.rm-cutoff-btn:hover:not(:disabled) {
+  background: var(--error-dim);
+  border-color: var(--error);
+  color: var(--error);
+}
+.rm-cutoff-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .rm-period-label {
   font-size: 15px;
   font-weight: 700;

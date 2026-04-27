@@ -2,8 +2,14 @@ import { readFile, writeFile, readdir, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { deriveStatementMeta } from './deriveStatementMeta.js';
+import { normalizeMerchantKey } from './rulesStore.js';
+
+function recomputeFingerprint(date, description, amount) {
+  const key = `${date}|${normalizeMerchantKey(description)}|${amount}`;
+  return createHash('sha256').update(key).digest('hex').slice(0, 16);
+}
 
 // Use a separate directory for sandbox testing so fake data never touches real statements
 const dataSubdir = process.env.PLAID_ENV === 'sandbox' ? 'sandbox-statements' : 'statements';
@@ -20,6 +26,16 @@ export async function ensureDataDir() {
   if (!existsSync(DATA_DIR)) {
     await mkdir(DATA_DIR, { recursive: true });
   }
+}
+
+/**
+ * Filter out transactions that already exist in any saved statement.
+ * Returns { unique, duplicateCount }.
+ */
+export async function deduplicateTransactions(transactions) {
+  const existing = await getAllFingerprints();
+  const unique = transactions.filter((t) => !existing.has(t.fingerprint));
+  return { unique, duplicateCount: transactions.length - unique.length };
 }
 
 export async function getAllFingerprints() {
@@ -186,4 +202,35 @@ export async function deleteStatement(id) {
   if (!existsSync(path)) return false;
   await unlink(path);
   return true;
+}
+
+/**
+ * One-time migration: recompute all transaction fingerprints using the
+ * normalized merchant key so that CSV-uploaded and Plaid-synced transactions
+ * for the same merchant produce the same fingerprint and dedup correctly.
+ */
+export async function migrateFingerprints() {
+  await ensureDataDir();
+  const files = (await readdir(DATA_DIR)).filter((f) => f.endsWith('.json'));
+  let totalUpdated = 0;
+  for (const f of files) {
+    const path = join(DATA_DIR, f);
+    try {
+      const stmt = JSON.parse(await readFile(path, 'utf8'));
+      let changed = false;
+      const transactions = stmt.transactions.map((t) => {
+        const newFp = recomputeFingerprint(t.date, t.description, t.amount);
+        if (newFp === t.fingerprint) return t;
+        changed = true;
+        totalUpdated++;
+        return { ...t, fingerprint: newFp };
+      });
+      if (changed) {
+        await writeFile(path, JSON.stringify({ ...stmt, transactions }, null, 2));
+      }
+    } catch { /* skip unreadable files */ }
+  }
+  if (totalUpdated > 0) {
+    console.log(`[migration] Re-fingerprinted ${totalUpdated} transactions across ${files.length} statements.`);
+  }
 }

@@ -196,7 +196,7 @@
 .dash-breakdown-name {
   font-size: 13px;
   color: var(--text-2);
-  width: 100px;
+  width: 160px;
   flex-shrink: 0;
 }
 

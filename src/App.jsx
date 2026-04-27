@@ -132,7 +132,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Sync failed.');
       if (data.groups && data.groups.length > 0) {
-        setReviewData({ groups: data.groups, duplicateCount: data.duplicateCount || 0 });
+        setReviewData({ groups: data.groups, duplicateCount: data.duplicateCount || 0, cursor: data.cursor });
       } else {
         setError(data.message || 'No new transactions found.');
       }
@@ -201,6 +201,15 @@ export default function App() {
             totalDupes += data.duplicateCount || 0;
           }
         }
+      }
+
+      // Advance the Plaid cursor only after all groups are confirmed saved
+      if (reviewData.cursor) {
+        await fetch('/api/plaid/advance-cursor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cursor: reviewData.cursor }),
+        });
       }
 
       setReviewData(null);

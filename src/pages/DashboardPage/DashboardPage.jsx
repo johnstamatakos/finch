@@ -4,48 +4,25 @@ import {
   LineChart, Line,
   AreaChart, Area,
   ResponsiveContainer, PieChart, Pie, Cell,
+  Treemap,
 } from 'recharts';
-import { CATEGORIES, CATEGORY_COLORS } from '../../constants/categories.js';
+import { useCategories } from '../../hooks/useCategories.js';
 import { formatCurrency } from '../../utils/formatters.js';
+import { CHART_COLORS, TOOLTIP_STYLE, AXIS_TICK, AXIS_LINE, GRID_STYLE } from '../../constants/chartTheme.js';
 import InsightsCard from '../../components/InsightsCard/InsightsCard.jsx';
 import './DashboardPage.css';
 
-// Match stat card colors
-const COLOR_EXPENSES  = '#f87171'; // var(--negative)
-const COLOR_INCOME    = '#34d399'; // var(--positive)
-const COLOR_ACCENT    = '#818cf8'; // var(--accent) — used for general/monthly charts
-const COLOR_MERCHANTS = '#2dd4bf'; // teal — top merchants
-const COLOR_RECURRING = '#38bdf8'; // sky blue — recurring fixed costs
-const COLOR_ONETIME   = '#64748b'; // slate — one-time discretionary
-const COLOR_DAILY     = '#fb923c'; // orange — daily spend
+const COLOR_EXPENSES  = CHART_COLORS.expenses;
+const COLOR_INCOME    = CHART_COLORS.income;
+const COLOR_ACCENT    = CHART_COLORS.accent;
+const COLOR_MERCHANTS = CHART_COLORS.merchants;
+const COLOR_RECURRING = CHART_COLORS.recurring;
+const COLOR_ONETIME   = CHART_COLORS.onetime;
+const COLOR_DAILY     = CHART_COLORS.daily;
 
-const TOOLTIP_STYLE = {
-  borderRadius: '10px',
-  border: '1px solid #2d3a52',
-  fontSize: 12,
-  background: '#1c2338',
-  color: '#f1f5f9',
-};
-
-const AXIS_TICK  = { fontSize: 11, fill: '#8898aa' };
-const AXIS_LINE  = { stroke: '#2d3a52' };
-const GRID_STYLE = { strokeDasharray: '3 3', stroke: '#1e2a3f' };
-
-function MerchantTick({ x, y, payload }) {
-  if (!payload?.value) return null;
-  const full  = payload.value;
-  const label = full.length > 20 ? full.slice(0, 20) + '…' : full;
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <title>{full}</title>
-      <text x={0} y={0} dy={4} textAnchor="end" fill="#8898aa" fontSize={11}>
-        {label}
-      </text>
-    </g>
-  );
-}
 
 export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }) {
+  const { getCategoryColor } = useCategories();
   const selected = selectedId ? statements.find((s) => s.id === selectedId) : null;
 
   // ── Fetch full transaction data for merchant/recurring/daily charts ────────
@@ -125,9 +102,9 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
       income += s.summary?.totalDeposits ?? 0;
     }
 
-    const categoryData = CATEGORIES
-      .filter((c) => c !== 'Transfers' && totals[c] > 0)
-      .map((c) => ({ name: c, value: parseFloat(totals[c].toFixed(2)) }))
+    const categoryData = Object.entries(totals)
+      .filter(([c, v]) => c !== 'Transfers' && v > 0)
+      .map(([c, v]) => ({ name: c, value: parseFloat(v.toFixed(2)) }))
       .sort((a, b) => b.value - a.value);
 
     return { categoryData, totalExpenses: expenses, totalIncome: income };
@@ -136,14 +113,22 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
   // ── Top merchants ─────────────────────────────────────────────────────────
   const merchantData = useMemo(() => {
     const totals = {};
+    const cats = {};
     for (const t of txns) {
       if (t.isDeposit || t.category === 'Transfers') continue;
       totals[t.description] = (totals[t.description] || 0) + Math.abs(t.amount);
+      // Track most-common category per merchant for tile coloring
+      cats[t.description] = cats[t.description] || {};
+      cats[t.description][t.category] = (cats[t.description][t.category] || 0) + 1;
     }
     return Object.entries(totals)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 12)
-      .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
+      .map(([name, value]) => {
+        const catCounts = cats[name] || {};
+        const category = Object.entries(catCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || 'Other';
+        return { name, value: parseFloat(value.toFixed(2)), category };
+      });
   }, [txns]);
 
   // ── Recurring vs one-time ─────────────────────────────────────────────────
@@ -323,9 +308,9 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
                         key={cat}
                         type="monotone"
                         dataKey={cat}
-                        stroke={CATEGORY_COLORS[cat] || '#94a3b8'}
+                        stroke={getCategoryColor(cat)}
                         strokeWidth={2}
-                        dot={{ r: 3, fill: CATEGORY_COLORS[cat] || '#94a3b8', strokeWidth: 0 }}
+                        dot={{ r: 3, fill: getCategoryColor(cat), strokeWidth: 0 }}
                         activeDot={{ r: 5, strokeWidth: 0 }}
                       />
                     ))}
@@ -339,7 +324,7 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
                       onClick={() => toggleCat(cat)}
                       title={hiddenCats.has(cat) ? 'Show' : 'Hide'}
                     >
-                      <span className="dash-legend-dot" style={{ background: CATEGORY_COLORS[cat] }} />
+                      <span className="dash-legend-dot" style={{ background: getCategoryColor(cat) }} />
                       {cat}
                     </span>
                   ))}
@@ -369,7 +354,7 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
                     animationBegin={0} animationDuration={450}
                   >
                     {visiblePieData.map((entry) => (
-                      <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] || '#94a3b8'} />
+                      <Cell key={entry.name} fill={getCategoryColor(entry.name)} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -386,7 +371,7 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
                     onClick={() => togglePieCat(item.name)}
                     title={hiddenPieCats.has(item.name) ? 'Show' : 'Hide'}
                   >
-                    <span className="dash-legend-dot" style={{ background: CATEGORY_COLORS[item.name] || '#94a3b8' }} />
+                    <span className="dash-legend-dot" style={{ background: getCategoryColor(item.name) }} />
                     {item.name}
                   </span>
                 ))}
@@ -402,12 +387,12 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
           <div className="dash-breakdown">
             {categoryData.map((item) => (
               <div key={item.name} className="dash-breakdown-row">
-                <div className="dash-breakdown-dot" style={{ background: CATEGORY_COLORS[item.name] }} />
+                <div className="dash-breakdown-dot" style={{ background: getCategoryColor(item.name) }} />
                 <span className="dash-breakdown-name">{item.name}</span>
                 <div className="dash-breakdown-bar-wrap">
                   <div
                     className="dash-breakdown-bar"
-                    style={{ width: `${(item.value / totalExpenses) * 100}%`, background: CATEGORY_COLORS[item.name] }}
+                    style={{ width: `${(item.value / totalExpenses) * 100}%`, background: getCategoryColor(item.name) }}
                   />
                 </div>
                 <span className="dash-breakdown-amt">{formatCurrency(item.value)}</span>
@@ -423,39 +408,24 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
       {txns.length > 0 && (
         <div className="dash-columns-wide">
 
-          {/* Horizontal bar: top merchants */}
+          {/* Treemap: top merchants */}
           <div className="dash-card">
             <h2>Top Merchants</h2>
             {merchantData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(180, merchantData.length * 28)}>
-                <BarChart
+              <ResponsiveContainer width="100%" height={280}>
+                <Treemap
                   data={merchantData}
-                  layout="vertical"
-                  margin={{ top: 0, right: 60, left: 0, bottom: 0 }}
+                  dataKey="value"
+                  aspectRatio={4 / 3}
+                  content={(props) => (
+                    <MerchantTile {...props} getCategoryColor={getCategoryColor} formatCurrency={formatCurrency} />
+                  )}
                 >
-                  <XAxis
-                    type="number"
-                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
-                    tick={AXIS_TICK}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={(props) => <MerchantTick {...props} />}
-                    interval={0}
-                    axisLine={false}
-                    tickLine={false}
-                    width={130}
-                  />
                   <Tooltip
-                    formatter={(v) => [formatCurrency(v), 'Spent']}
+                    formatter={(v, _name, props) => [formatCurrency(v), props?.payload?.name || '']}
                     contentStyle={TOOLTIP_STYLE}
-                    cursor={{ fill: 'rgba(129,140,248,0.06)' }}
                   />
-                  <Bar dataKey="value" fill={COLOR_MERCHANTS} radius={[0, 4, 4, 0]} label={{ position: 'right', formatter: (v) => formatCurrency(v), fontSize: 11, fill: '#8898aa' }} />
-                </BarChart>
+                </Treemap>
               </ResponsiveContainer>
             ) : (
               <p className="dash-empty-chart">No transaction data</p>
@@ -578,5 +548,30 @@ export default function DashboardPage({ statements, selectedId, budgetGoal = 0 }
         </div>
       )}
     </div>
+  );
+}
+
+function MerchantTile({ x, y, width, height, name, value, category, getCategoryColor, formatCurrency }) {
+  if (!width || !height || width < 2 || height < 2) return null;
+  const fill = getCategoryColor(category || 'Other');
+  const pad = 6;
+  const label = name?.length > 18 ? name.slice(0, 18) + '…' : name;
+  const showAmt  = height > 36 && width > 60;
+  const showName = height > 18 && width > 40;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} fillOpacity={0.82} rx={4} />
+      <rect x={x} y={y} width={width} height={height} fill="none" stroke="#0d1117" strokeWidth={2} rx={4} />
+      {showName && (
+        <text x={x + pad} y={y + pad + 11} fontSize={11} fill="#fff" fontWeight={600} style={{ pointerEvents: 'none' }}>
+          {label}
+        </text>
+      )}
+      {showAmt && (
+        <text x={x + pad} y={y + pad + 26} fontSize={10} fill="rgba(255,255,255,0.7)" style={{ pointerEvents: 'none' }}>
+          {formatCurrency(value)}
+        </text>
+      )}
+    </g>
   );
 }

@@ -1,7 +1,8 @@
 import { randomUUID, createHash } from 'crypto';
+import { normalizeMerchantKey } from './rulesStore.js';
 
 function fingerprint(date, description, amount) {
-  const key = `${date}|${description.toLowerCase().trim()}|${amount}`;
+  const key = `${date}|${normalizeMerchantKey(description)}|${amount}`;
   return createHash('sha256').update(key).digest('hex').slice(0, 16);
 }
 

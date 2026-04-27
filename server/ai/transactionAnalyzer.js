@@ -1,11 +1,11 @@
 import { anthropic } from './claudeClient.js';
 
-const SYSTEM_PROMPT = `You are a bank transaction categorizer. Given a JSON array of transactions (each with a source/merchant and optional bank activity type), return a JSON array with a category and isRecurring flag for each one — in the same order.
+const BASE_CATEGORIES = [
+  'Auto', 'Home', 'Utilities', 'Credit Cards', 'Student Loans',
+  'Subscriptions', 'Shopping', 'Groceries', 'Restaurants', 'Other',
+];
 
-Valid categories: Auto, Home, Utilities, Credit Cards, Student Loans, Subscriptions, Shopping, Groceries, Restaurants, Other
-
-Category guide:
-- Auto: gas stations, car payments, auto insurance, parking, car repair, Uber/Lyft (passenger)
+const BASE_GUIDE = `- Auto: gas stations, car payments, auto insurance, parking, car repair, Uber/Lyft (passenger)
 - Home: rent, mortgage, home insurance, furniture, home repair
 - Utilities: electric, gas, water, internet, phone bill, cable
 - Credit Cards: credit card payments (not purchases)
@@ -14,22 +14,36 @@ Category guide:
 - Shopping: Amazon, clothing, electronics, general retail, department stores
 - Groceries: Whole Foods, Trader Joe's, Costco, supermarkets, grocery stores
 - Restaurants: restaurants, cafes, fast food, bars, DoorDash, Uber Eats, Grubhub
-- Other: deposits, paychecks, refunds, transfers, ATM, and anything else
+- Other: deposits, paychecks, refunds, transfers, ATM, and anything else`;
+
+function buildSystemPrompt(customCategories) {
+  const allCategories = [...BASE_CATEGORIES, ...customCategories];
+  const customGuide = customCategories.length > 0
+    ? `\n\nCustom categories — use when transactions clearly match:\n${customCategories.map((c) => `- ${c}`).join('\n')}`
+    : '';
+
+  return `You are a bank transaction categorizer. Given a JSON array of transactions (each with a source/merchant and optional bank activity type), return a JSON array with a category and isRecurring flag for each one — in the same order.
+
+Valid categories: ${allCategories.join(', ')}
+
+Category guide:
+${BASE_GUIDE}${customGuide}
 
 isRecurring: true for fixed-schedule charges — subscriptions, rent, loan payments, utilities, insurance, phone bills
 
 Return ONLY a valid JSON array — no markdown, no explanation. Include the i field from the input:
 [{"i":0,"category":"Restaurants","isRecurring":false},...]`;
+}
 
 const BATCH_SIZE = 80; // safe ceiling for Haiku's 4096-token output limit
 
-export async function analyzeTransactions(transactions) {
+export async function analyzeTransactions(transactions, customCategories = []) {
+  const systemPrompt = buildSystemPrompt(customCategories);
   const categoryMap = {};
 
-  // Process in batches, preserving global indices
   for (let start = 0; start < transactions.length; start += BATCH_SIZE) {
     const batch = transactions.slice(start, start + BATCH_SIZE);
-    const batchMap = await categorizeBatch(batch, start);
+    const batchMap = await categorizeBatch(batch, start, systemPrompt);
     Object.assign(categoryMap, batchMap);
   }
 
@@ -40,7 +54,7 @@ export async function analyzeTransactions(transactions) {
   }));
 }
 
-async function categorizeBatch(batch, offset) {
+async function categorizeBatch(batch, offset, systemPrompt) {
   const input = batch.map((t, idx) => {
     const entry = { i: offset + idx, source: t.source, isDeposit: t.amount > 0 };
     if (t.activity) entry.activity = t.activity;
@@ -50,7 +64,7 @@ async function categorizeBatch(batch, offset) {
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 4096,
-    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: JSON.stringify(input) }],
   });
 

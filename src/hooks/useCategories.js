@@ -1,7 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CATEGORIES, CATEGORY_COLORS } from '../constants/categories.js';
-
-const STORAGE_KEY = 'finch-custom-categories';
 
 // Extra colors cycled for user-created categories
 const CUSTOM_PALETTE = [
@@ -9,16 +7,15 @@ const CUSTOM_PALETTE = [
   '#fb923c', '#38bdf8', '#c084fc', '#34d399', '#fbbf24',
 ];
 
-function loadCustom() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
 export function useCategories() {
-  const [customCategories, setCustomCategories] = useState(loadCustom);
+  const [customCategories, setCustomCategories] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setCustomCategories(data))
+      .catch(() => {});
+  }, []);
 
   const allCategories = [
     ...CATEGORIES,
@@ -29,23 +26,42 @@ export function useCategories() {
     return a.localeCompare(b);
   });
 
-  const addCategory = (name) => {
+  const addCategory = async (name) => {
     const trimmed = name.trim();
     if (!trimmed) return null;
     if (allCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return null;
-    const updated = [...customCategories, trimmed];
-    setCustomCategories(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return trimmed;
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) return null;
+      const { name: added } = await res.json();
+      setCustomCategories((prev) => [...prev, added]);
+      return added;
+    } catch {
+      return null;
+    }
+  };
+
+  const removeCategory = async (name) => {
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      if (!res.ok) return false;
+      setCustomCategories((prev) => prev.filter((c) => c !== name));
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const getCategoryColor = (name) => {
     if (CATEGORY_COLORS[name]) return CATEGORY_COLORS[name];
-    // Stable color based on name hash
     let hash = 0;
     for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
     return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length];
   };
 
-  return { allCategories, customCategories, addCategory, getCategoryColor };
+  return { allCategories, customCategories, addCategory, removeCategory, getCategoryColor };
 }

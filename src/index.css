@@ -37,6 +37,16 @@
   --warning:  #fbbf24;
   --purple:   #a78bfa;
   --cyan:     #22d3ee;
+
+  /* Error */
+  --error:     #f43f5e;
+  --error-dim: rgba(244, 63, 94, 0.13);
+
+  /* Chart palette — mirrors CHART_COLORS in chartTheme.js */
+  --chart-merchants: #2dd4bf;
+  --chart-daily:     #fb923c;
+  --chart-recurring: #38bdf8;
+  --chart-onetime:   #a78bfa;
 }
 
 body {

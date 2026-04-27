@@ -120,8 +120,8 @@
 }
 .sg-badge-red    { background: rgba(248,113,113,0.15); color: var(--negative); }
 .sg-badge-accent { background: var(--accent-dim); color: var(--accent-hover); }
-.sg-badge-warn   { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.sg-badge-orange { background: rgba(251,146,60,0.15); color: #fb923c; }
+.sg-badge-warn   { background: rgba(251,191,36,0.15);  color: var(--warning); }
+.sg-badge-orange { background: rgba(251,146,60,0.15);  color: var(--chart-daily); }
 
 /* Header row */
 .sg-header {

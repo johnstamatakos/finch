@@ -64,6 +64,19 @@ export default function ReviewModal({
     }
   };
 
+  const [cutoffDate, setCutoffDate] = useState('');
+
+  const removeBefore = () => {
+    if (!cutoffDate) return;
+    setGroupStates((prev) =>
+      prev.map((gs, i) => {
+        if (i !== activeIdx) return gs;
+        return { ...gs, txns: gs.txns.filter((t) => !t.date || t.date >= cutoffDate) };
+      })
+    );
+    setCutoffDate('');
+  };
+
   const { needsReview, looksGood } = useMemo(() => ({
     needsReview: active.txns.filter((t) => !t.ruleApplied && !t.isDeposit),
     looksGood:   active.txns.filter((t) =>  t.ruleApplied ||  t.isDeposit),
@@ -118,7 +131,22 @@ export default function ReviewModal({
               {duplicateCount > 0 && ` · ${duplicateCount} duplicate${duplicateCount !== 1 ? 's' : ''} skipped`}
             </span>
           </div>
-          <span className="rm-period-label">{initialGroups[activeIdx].name}</span>
+          <div className="rm-cutoff">
+            <label className="rm-cutoff-label">Remove before</label>
+            <input
+              className="rm-cutoff-input"
+              type="date"
+              value={cutoffDate}
+              onChange={(e) => setCutoffDate(e.target.value)}
+            />
+            <button
+              className="rm-cutoff-btn"
+              disabled={!cutoffDate}
+              onClick={removeBefore}
+            >
+              Remove
+            </button>
+          </div>
           <button className="rm-close" onClick={onClose} aria-label="Close">×</button>
         </div>
 

@@ -274,6 +274,41 @@
 .tx-table tbody tr:hover .tx-del-btn { opacity: 0.4; }
 .tx-del-btn:hover { opacity: 1 !important; color: var(--negative); background: rgba(248, 113, 113, 0.1); }
 
+/* ── Pagination ──────────────────────────────────────────────── */
+.tx-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 0 4px;
+}
+
+.tx-page-btn {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.tx-page-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tx-page-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tx-page-info {
+  font-size: 13px;
+  color: var(--text-3);
+  min-width: 90px;
+  text-align: center;
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .tx-page { padding: 16px; gap: 12px; }

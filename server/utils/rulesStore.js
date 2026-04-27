@@ -157,5 +157,3 @@ export async function applyRules(transactions) {
   });
 }
 
-// Legacy no-op — no longer called from any save path
-export async function learnFromTransactions() {}
