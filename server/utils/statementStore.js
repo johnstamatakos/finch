@@ -6,7 +6,7 @@ import { randomUUID, createHash } from 'crypto';
 import { deriveStatementMeta } from './deriveStatementMeta.js';
 import { normalizeMerchantKey } from './rulesStore.js';
 
-export function recomputeFingerprint(date, description, amount) {
+function recomputeFingerprint(date, description, amount) {
   const key = `${date}|${normalizeMerchantKey(description)}|${amount}`;
   return createHash('sha256').update(key).digest('hex').slice(0, 16);
 }
@@ -202,122 +202,6 @@ export async function deleteStatement(id) {
   if (!existsSync(path)) return false;
   await unlink(path);
   return true;
-}
-
-/**
- * Batch-normalize merchant descriptions and categories across all statements.
- *
- * For each cluster of transactions that share the same real-world merchant
- * (as determined by the caller-supplied clusters array), this function:
- *   - Picks the most-recent transaction's description as canonical
- *   - Picks the most-recent transaction's category as canonical (when they differ)
- *   - Updates all other transactions in the cluster to match
- *   - Recomputes fingerprints for changed transactions
- *   - Recalculates statement summaries via updateStatement()
- *
- * @param {Array<{descriptions: string[]}>} clusters - Output from groupMerchants()
- * @returns {{ clustersFound: number, transactionsUpdated: number, changes: Array }}
- */
-export async function normalizeMerchants(clusters) {
-  await ensureDataDir();
-  const files = (await readdir(DATA_DIR)).filter((f) => f.endsWith('.json'));
-
-  // Load all statements into memory
-  const statements = await Promise.all(
-    files.map(async (f) => {
-      const raw = await readFile(join(DATA_DIR, f), 'utf8');
-      return JSON.parse(raw);
-    })
-  );
-
-  let transactionsUpdated = 0;
-  const changes = [];
-
-  for (const cluster of clusters) {
-    const { descriptions } = cluster;
-    const descSet = new Set(descriptions.map((d) => d.toLowerCase()));
-
-    // Gather all transactions across all statements that match this cluster
-    const matches = [];
-    for (const stmt of statements) {
-      for (const tx of stmt.transactions) {
-        if (descSet.has((tx.description || '').toLowerCase())) {
-          matches.push({ tx, stmtId: stmt.id });
-        }
-      }
-    }
-
-    if (matches.length < 2) continue;
-
-    // Sort by date descending to find most-recent canonical values
-    matches.sort((a, b) => (b.tx.date > a.tx.date ? 1 : b.tx.date < a.tx.date ? -1 : 0));
-    const canonicalDescription = matches[0].tx.description;
-    const canonicalCategory = matches[0].tx.category;
-
-    // Check if anything actually needs to change
-    const needsUpdate = matches.filter(
-      ({ tx }) => tx.description !== canonicalDescription || tx.category !== canonicalCategory
-    );
-    if (needsUpdate.length === 0) continue;
-
-    changes.push({
-      canonical: canonicalDescription,
-      canonicalCategory,
-      merged: needsUpdate.map(({ tx }) => ({
-        from: tx.description,
-        fromCategory: tx.category,
-        date: tx.date,
-      })),
-    });
-
-    // Build a set of tx IDs to update, keyed by statement ID
-    const updatesByStmt = {};
-    for (const { tx, stmtId } of needsUpdate) {
-      if (!updatesByStmt[stmtId]) updatesByStmt[stmtId] = new Set();
-      updatesByStmt[stmtId].add(tx.id);
-      transactionsUpdated++;
-    }
-
-    // Apply changes to in-memory statements
-    for (const stmt of statements) {
-      if (!updatesByStmt[stmt.id]) continue;
-      stmt.transactions = stmt.transactions.map((tx) => {
-        if (!updatesByStmt[stmt.id].has(tx.id)) return tx;
-        const updated = {
-          ...tx,
-          description: canonicalDescription,
-          category: canonicalCategory,
-          fingerprint: recomputeFingerprint(tx.date, canonicalDescription, tx.amount),
-        };
-        return updated;
-      });
-    }
-  }
-
-  // Write back all statements that contained any transaction from a cluster
-  // (safe because updateStatement recalculates summary idempotently)
-  const stmtIdsToWrite = new Set();
-  for (const cluster of clusters) {
-    const descSet = new Set(cluster.descriptions.map((d) => d.toLowerCase()));
-    for (const stmt of statements) {
-      const hasMatch = stmt.transactions.some((tx) => descSet.has((tx.description || '').toLowerCase()));
-      if (hasMatch) stmtIdsToWrite.add(stmt.id);
-    }
-  }
-
-  await Promise.all(
-    statements
-      .filter((s) => stmtIdsToWrite.has(s.id))
-      .map((stmt) =>
-        updateStatement(stmt.id, {
-          name: stmt.name,
-          monthlyIncome: stmt.monthlyIncome,
-          transactions: stmt.transactions,
-        })
-      )
-  );
-
-  return { clustersFound: clusters.length, transactionsUpdated, changes };
 }
 
 /**

@@ -19,9 +19,7 @@ import {
   deduplicateTransactions,
   appendTransactions,
   migrateFingerprints,
-  normalizeMerchants,
 } from './utils/statementStore.js';
-import { groupMerchants } from './ai/merchantGrouper.js';
 import { plaidClient } from './plaid/plaidClient.js';
 import { getPlaidConfig, savePlaidConfig, hasPlaidConfig } from './utils/plaidStore.js';
 import { CountryCode, Products } from 'plaid';
@@ -498,48 +496,6 @@ app.post('/api/plaid/advance-cursor', asyncHandler(async (req, res) => {
 app.get('/api/plaid/status', asyncHandler(async (_req, res) => {
   const connected = await hasPlaidConfig();
   return res.json({ connected });
-}));
-
-// ── Admin / Maintenance ───────────────────────────────────────────────────────
-
-/**
- * POST /api/admin/normalize-merchants
- * Uses AI to cluster similar merchant descriptions across all statements, then
- * updates all transactions in each cluster to use the most-recent transaction's
- * description and category as the canonical form. Amounts, dates, and IDs are
- * never modified.
- */
-app.post('/api/admin/normalize-merchants', asyncHandler(async (_req, res) => {
-  // Collect all unique descriptions from every statement
-  const allStatements = await listStatements();
-  const descriptionSet = new Set();
-
-  await Promise.all(
-    allStatements.map(async (meta) => {
-      const stmt = await getStatement(meta.id);
-      if (!stmt) return;
-      for (const tx of stmt.transactions) {
-        if (tx.description) descriptionSet.add(tx.description);
-      }
-    })
-  );
-
-  const descriptions = Array.from(descriptionSet);
-  if (descriptions.length < 2) {
-    return res.json({ clustersFound: 0, transactionsUpdated: 0, changes: [] });
-  }
-
-  const clusters = await groupMerchants(descriptions);
-  if (clusters.length === 0) {
-    return res.json({ clustersFound: 0, transactionsUpdated: 0, changes: [] });
-  }
-
-  const result = await normalizeMerchants(clusters);
-  if (result.transactionsUpdated > 0) {
-    await clearInsightsCache();
-  }
-
-  return res.json(result);
 }));
 
 // ── Error middleware ──────────────────────────────────────────────────────────
