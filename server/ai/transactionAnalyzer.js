@@ -1,4 +1,4 @@
-import { anthropic } from './claudeClient.js';
+import { createMessage } from './providers/index.js';
 
 const BASE_CATEGORIES = [
   'Auto', 'Home', 'Utilities', 'Credit Cards', 'Student Loans',
@@ -67,17 +67,11 @@ async function categorizeBatch(batch, offset, systemPrompt) {
     return entry;
   });
 
-  const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
-    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: JSON.stringify(input) }],
+  let jsonText = await createMessage({
+    maxTokens: 4096,
+    systemPrompt,
+    userMessage: JSON.stringify(input),
   });
-
-  let jsonText = '';
-  for (const block of message.content) {
-    if (block.type === 'text') { jsonText = block.text; break; }
-  }
 
   jsonText = jsonText
     .replace(/^```json\s*/i, '')
@@ -93,13 +87,13 @@ async function categorizeBatch(batch, offset, systemPrompt) {
   try {
     categories = JSON.parse(jsonText);
   } catch {
-    console.error('Haiku parse failed. stop_reason:', message.stop_reason, '| batch offset:', offset);
+    console.error('AI parse failed. batch offset:', offset);
     console.error('Raw (first 300):', jsonText.slice(0, 300));
-    throw new Error('Failed to parse Claude response. Please try again.');
+    throw new Error('Failed to parse AI response. Please try again.');
   }
 
   if (!Array.isArray(categories)) {
-    throw new Error('Unexpected response format from Claude. Please try again.');
+    throw new Error('Unexpected response format from AI. Please try again.');
   }
 
   const map = {};

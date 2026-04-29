@@ -9,8 +9,8 @@ import StatementsPage from './pages/StatementsPage/StatementsPage.jsx';
 import RulesPage from './pages/RulesPage/RulesPage.jsx';
 import LoadingSpinner from './components/shared/LoadingSpinner.jsx';
 import ErrorBanner from './components/shared/ErrorBanner.jsx';
+import SidebarSection from './components/shared/SidebarSection.jsx';
 import { useCategories } from './hooks/useCategories.js';
-import { CATEGORIES } from './constants/categories.js';
 import './App.css';
 
 export default function App() {
@@ -460,20 +460,6 @@ export default function App() {
         />
       )}
     </>
-  );
-}
-
-// Collapsible sidebar section
-function SidebarSection({ label, children }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className="sidebar-section">
-      <button className="sidebar-section-hd" onClick={() => setOpen((v) => !v)}>
-        <span className="sidebar-label">{label}</span>
-        <span className="sidebar-chevron" aria-hidden>{open ? '▴' : '▾'}</span>
-      </button>
-      {open && children}
-    </div>
   );
 }
 

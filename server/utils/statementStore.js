@@ -2,14 +2,9 @@ import { readFile, writeFile, readdir, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID } from 'crypto';
 import { deriveStatementMeta } from './deriveStatementMeta.js';
-import { normalizeMerchantKey } from './rulesStore.js';
-
-function recomputeFingerprint(date, description, amount) {
-  const key = `${date}|${normalizeMerchantKey(description)}|${amount}`;
-  return createHash('sha256').update(key).digest('hex').slice(0, 16);
-}
+import { computeFingerprint } from './normalizeTransactions.js';
 
 // Use a separate directory for sandbox testing so fake data never touches real statements
 const dataSubdir = process.env.PLAID_ENV === 'sandbox' ? 'sandbox-statements' : 'statements';
@@ -219,7 +214,7 @@ export async function migrateFingerprints() {
       const stmt = JSON.parse(await readFile(path, 'utf8'));
       let changed = false;
       const transactions = stmt.transactions.map((t) => {
-        const newFp = recomputeFingerprint(t.date, t.description, t.amount);
+        const newFp = computeFingerprint(t.date, t.description, t.amount);
         if (newFp === t.fingerprint) return t;
         changed = true;
         totalUpdated++;

@@ -48,6 +48,44 @@ export function normalizeMerchantKey(source) {
   return s.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+// ── Rule matching helpers ─────────────────────────────────────────────────────
+
+/**
+ * Precompute collapsed (no-space) forms for multi-word rule keys.
+ * Pass the result to findBestRuleKey to avoid recomputing on each call.
+ */
+export function buildCollapsedKeys(ruleKeys) {
+  return Object.fromEntries(
+    ruleKeys.filter((k) => k.includes(' ')).map((k) => [k, k.replace(/\s+/g, '')])
+  );
+}
+
+/**
+ * Find the longest-matching rule key for a normalized merchant string.
+ * Returns the matching key, or null if no rule matches.
+ *
+ * Uses prefix matching with word-boundary checks and a space-collapsed fallback
+ * for multi-word keys (e.g. "disney plus" matches "disneyplus" transactions).
+ */
+export function findBestRuleKey(norm, ruleKeys, collapsedKeys) {
+  const normCollapsed = norm.replace(/\s+/g, '');
+  let bestKey = null;
+  let bestLen = 0;
+  for (const key of ruleKeys) {
+    if (key.length <= bestLen) continue;
+    const kc = collapsedKeys[key];
+    if (
+      norm === key ||
+      (norm.startsWith(key) && (norm[key.length] === ' ' || norm[key.length] === '*')) ||
+      (kc && (normCollapsed === kc || normCollapsed.startsWith(kc)))
+    ) {
+      bestKey = key;
+      bestLen = key.length;
+    }
+  }
+  return bestKey;
+}
+
 // ── Storage ───────────────────────────────────────────────────────────────────
 
 async function loadRules() {
@@ -115,33 +153,13 @@ export async function applyRules(transactions) {
   const ruleKeys = Object.keys(rules);
   if (ruleKeys.length === 0) return transactions;
 
-  // Precompute collapsed (no-space) forms for multi-word keys
-  const collapsedKeys = Object.fromEntries(
-    ruleKeys.filter((k) => k.includes(' ')).map((k) => [k, k.replace(/\s+/g, '')])
-  );
+  const collapsedKeys = buildCollapsedKeys(ruleKeys);
 
   return transactions.map((t) => {
     if (t.isDeposit) return { ...t, ruleApplied: false };
 
     const norm = normalizeMerchantKey(t.description);
-    const normCollapsed = norm.replace(/\s+/g, '');
-
-    // Find longest matching rule key (prefix match with word-boundary check)
-    let bestKey = null;
-    let bestLen = 0;
-    for (const key of ruleKeys) {
-      if (key.length <= bestLen) continue;
-      const kc = collapsedKeys[key]; // defined only for multi-word keys
-      if (
-        norm === key ||
-        (norm.startsWith(key) && (norm[key.length] === ' ' || norm[key.length] === '*')) ||
-        // Space-collapsed match: "disney plus" ↔ "disneyplus"
-        (kc && (normCollapsed === kc || normCollapsed.startsWith(kc)))
-      ) {
-        bestKey = key;
-        bestLen = key.length;
-      }
-    }
+    const bestKey = findBestRuleKey(norm, ruleKeys, collapsedKeys);
 
     if (bestKey) {
       const rule = rules[bestKey];

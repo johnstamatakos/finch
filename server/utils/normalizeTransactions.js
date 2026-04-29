@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from 'crypto';
 import { normalizeMerchantKey } from './rulesStore.js';
 
-function fingerprint(date, description, amount) {
+export function computeFingerprint(date, description, amount) {
   const key = `${date}|${normalizeMerchantKey(description)}|${amount}`;
   return createHash('sha256').update(key).digest('hex').slice(0, 16);
 }
@@ -27,7 +27,7 @@ export function normalizeTransactions(transactions) {
 
     return {
       id: randomUUID(),
-      fingerprint: fingerprint(date, description, normalizedAmount),
+      fingerprint: computeFingerprint(date, description, normalizedAmount),
       date,
       description,
       activity: String(t.activity || '').trim(),

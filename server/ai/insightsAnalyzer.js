@@ -1,4 +1,4 @@
-import { anthropic } from './claudeClient.js';
+import { createMessage } from './providers/index.js';
 
 const SYSTEM_PROMPT = `You are a personal finance analyst. Given monthly bank statement summaries, generate 4–6 short, specific, data-driven insights.
 
@@ -36,17 +36,11 @@ export async function generateInsights(statements) {
     transactionCount: s.summary?.transactionCount ?? 0,
   }));
 
-  const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
-    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: JSON.stringify(data) }],
+  const text = await createMessage({
+    maxTokens: 1024,
+    systemPrompt: SYSTEM_PROMPT,
+    userMessage: JSON.stringify(data),
   });
-
-  let text = '';
-  for (const block of message.content) {
-    if (block.type === 'text') { text = block.text; break; }
-  }
 
   // Strip markdown fences if model wraps anyway
   const json = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
