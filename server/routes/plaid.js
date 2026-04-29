@@ -2,14 +2,10 @@ import { Router } from 'express';
 import { CountryCode, Products } from 'plaid';
 import { plaidClient } from '../plaid/plaidClient.js';
 import { getPlaidConfig, savePlaidConfig, hasPlaidConfig } from '../utils/plaidStore.js';
-import { analyzeTransactions } from '../ai/transactionAnalyzer.js';
-import { normalizeTransactions } from '../utils/normalizeTransactions.js';
-import { applyRules } from '../utils/rulesStore.js';
+import { processTransactions } from '../utils/processTransactions.js';
 import { deduplicateTransactions, listStatements } from '../utils/statementStore.js';
-import { getCategories } from '../utils/categoriesStore.js';
 import { asyncHandler } from '../utils/requestHelpers.js';
-
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+import { MONTH_NAMES } from '../utils/deriveStatementMeta.js';
 
 const router = Router();
 
@@ -89,10 +85,7 @@ router.post('/plaid/sync', asyncHandler(async (_req, res) => {
     activity: t.payment_channel || '',
   }));
 
-  const customCategories = await getCategories();
-  const analyzed = await analyzeTransactions(rawTransactions, customCategories);
-  const normalized = normalizeTransactions(analyzed);
-  const withRules = await applyRules(normalized);
+  const withRules = await processTransactions(rawTransactions);
 
   const { unique, duplicateCount } = await deduplicateTransactions(withRules);
 

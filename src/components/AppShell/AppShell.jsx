@@ -3,6 +3,7 @@ import './AppShell.css';
 const NAV_ITEMS = [
   { key: 'dashboard',    label: 'Dashboard',     icon: '▤' },
   { key: 'transactions', label: 'Transactions',   icon: '↕' },
+  { key: 'categories',   label: 'Categories',     icon: '◈' },
   { key: 'statements',   label: 'Statements',     icon: '≡' },
   { key: 'rules',        label: 'Rules',          icon: '⚙' },
 ];

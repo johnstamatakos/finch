@@ -274,6 +274,96 @@
 .tx-table tbody tr:hover .tx-del-btn { opacity: 0.4; }
 .tx-del-btn:hover { opacity: 1 !important; color: var(--negative); background: rgba(248, 113, 113, 0.1); }
 
+/* ── Checkbox column ─────────────────────────────────────────── */
+
+.tx-col-check {
+  width: 36px;
+  padding: 0 4px 0 12px !important;
+  text-align: center;
+}
+
+.tx-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent, #6366f1);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.tx-table tbody tr.tx-row-selected {
+  background: rgba(99, 102, 241, 0.06) !important;
+}
+.tx-table tbody tr.tx-row-selected:hover {
+  background: rgba(99, 102, 241, 0.10) !important;
+}
+
+/* ── Bulk action bar ─────────────────────────────────────────── */
+
+.tx-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--accent, #6366f1);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15);
+  animation: tx-bulk-slide-in 0.15s ease;
+}
+
+@keyframes tx-bulk-slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tx-bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.tx-bulk-clear {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.tx-bulk-clear:hover { color: var(--text-1); }
+
+.tx-bulk-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.tx-bulk-label {
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.tx-bulk-apply {
+  background: var(--accent, #6366f1);
+  border: none;
+  border-radius: 7px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.tx-bulk-apply:hover:not(:disabled) { opacity: 0.85; }
+.tx-bulk-apply:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ── Pagination ──────────────────────────────────────────────── */
 .tx-pagination {
   display: flex;
@@ -339,4 +429,6 @@
   .tx-cat { width: 130px; }
   .tx-col-del { display: none; }
   .tx-col-rec { display: none; }
+  .tx-col-check { display: none; }
+  .tx-bulk-bar { flex-wrap: wrap; }
 }

@@ -31,6 +31,18 @@ export async function addCategory(name) {
   return trimmed;
 }
 
+export async function renameCategory(oldName, newName) {
+  const trimmed = newName.trim();
+  if (!trimmed) return null;
+  const categories = await load();
+  const idx = categories.findIndex((c) => c.toLowerCase() === oldName.toLowerCase());
+  if (idx === -1) return false;
+  if (categories.some((c, i) => i !== idx && c.toLowerCase() === trimmed.toLowerCase())) return null;
+  categories[idx] = trimmed;
+  await save(categories);
+  return trimmed;
+}
+
 export async function deleteCategory(name) {
   const categories = await load();
   const idx = categories.findIndex((c) => c.toLowerCase() === name.toLowerCase());

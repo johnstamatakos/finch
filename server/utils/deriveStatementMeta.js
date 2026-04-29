@@ -1,4 +1,4 @@
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+export const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 /**
  * Derives period label and pre-computes summary from a transactions array.
@@ -22,7 +22,7 @@ export function deriveStatementMeta(transactions, monthlyIncome) {
     const best = ymKeys.sort((a, b) => monthCounts[b] - monthCounts[a])[0];
     if (monthCounts[best] / total >= 0.4) {
       const [y, m] = best.split('-').map(Number);
-      period = { year: y, month: m, label: `${MONTHS[m - 1]} ${y}` };
+      period = { year: y, month: m, label: `${MONTH_NAMES[m - 1]} ${y}` };
     }
   }
 
@@ -30,7 +30,7 @@ export function deriveStatementMeta(transactions, monthlyIncome) {
   if (!period && ymKeys.length > 0) {
     const earliest = ymKeys.sort()[0];
     const [y, m] = earliest.split('-').map(Number);
-    period = { year: y, month: m, label: `${MONTHS[m - 1]} ${y}` };
+    period = { year: y, month: m, label: `${MONTH_NAMES[m - 1]} ${y}` };
   }
 
   if (!period) {
@@ -38,7 +38,7 @@ export function deriveStatementMeta(transactions, monthlyIncome) {
     period = {
       year: now.getFullYear(),
       month: now.getMonth() + 1,
-      label: `${MONTHS[now.getMonth()]} ${now.getFullYear()}`,
+      label: `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`,
     };
   }
 

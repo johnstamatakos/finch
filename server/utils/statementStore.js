@@ -200,6 +200,85 @@ export async function deleteStatement(id) {
 }
 
 /**
+ * Update every transaction whose category matches oldCategory to newCategory
+ * across all saved statements. Recalculates each affected statement's summary.
+ * Returns { updatedCount, statementsAffected }.
+ */
+export async function recategorizeAcrossAllStatements(oldCategory, newCategory) {
+  await ensureDataDir();
+  const files = (await readdir(DATA_DIR)).filter((f) => f.endsWith('.json'));
+  let updatedCount = 0;
+  let statementsAffected = 0;
+  for (const f of files) {
+    const path = join(DATA_DIR, f);
+    try {
+      const stmt = JSON.parse(await readFile(path, 'utf8'));
+      let changed = false;
+      const transactions = stmt.transactions.map((t) => {
+        if (t.category === oldCategory) {
+          changed = true;
+          updatedCount++;
+          return { ...t, category: newCategory };
+        }
+        return t;
+      });
+      if (changed) {
+        statementsAffected++;
+        const { period, summary } = deriveStatementMeta(transactions, stmt.monthlyIncome);
+        await writeFile(path, JSON.stringify({ ...stmt, transactions, period, summary }, null, 2));
+      }
+    } catch { /* skip unreadable files */ }
+  }
+  return { updatedCount, statementsAffected };
+}
+
+/**
+ * Bulk-patch transaction categories across one or more statements.
+ * updates: [{ stmtId, txId, category }]
+ * Groups by stmtId, reads each statement once, patches all matching txIds,
+ * recalculates summary, then saves.
+ * Returns { updatedCount, statementsAffected }.
+ */
+export async function bulkPatchTransactions(updates) {
+  await ensureDataDir();
+  // Group updates by statement id
+  const byStmt = new Map();
+  for (const u of updates) {
+    if (!byStmt.has(u.stmtId)) byStmt.set(u.stmtId, []);
+    byStmt.get(u.stmtId).push(u);
+  }
+
+  let updatedCount = 0;
+  let statementsAffected = 0;
+
+  for (const [stmtId, stmtUpdates] of byStmt) {
+    try {
+      validateId(stmtId);
+      const path = join(DATA_DIR, `${stmtId}.json`);
+      if (!existsSync(path)) continue;
+      const stmt = JSON.parse(await readFile(path, 'utf8'));
+      const patchMap = new Map(stmtUpdates.map((u) => [u.txId, u.category]));
+      let changed = false;
+      const transactions = stmt.transactions.map((t) => {
+        if (patchMap.has(t.id)) {
+          changed = true;
+          updatedCount++;
+          return { ...t, category: patchMap.get(t.id) };
+        }
+        return t;
+      });
+      if (changed) {
+        statementsAffected++;
+        const { period, summary } = deriveStatementMeta(transactions, stmt.monthlyIncome);
+        await writeFile(path, JSON.stringify({ ...stmt, transactions, period, summary }, null, 2));
+      }
+    } catch { /* skip invalid ids or unreadable files */ }
+  }
+
+  return { updatedCount, statementsAffected };
+}
+
+/**
  * One-time migration: recompute all transaction fingerprints using the
  * normalized merchant key so that CSV-uploaded and Plaid-synced transactions
  * for the same merchant produce the same fingerprint and dedup correctly.

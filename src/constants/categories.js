@@ -12,6 +12,18 @@ export const CATEGORIES = [
   'Transfers',
 ];
 
+const CUSTOM_PALETTE = [
+  '#0ea5e9', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16',
+  '#fb923c', '#38bdf8', '#c084fc', '#34d399', '#fbbf24',
+];
+
+export function getCategoryColor(name) {
+  if (CATEGORY_COLORS[name]) return CATEGORY_COLORS[name];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length];
+}
+
 export const CATEGORY_COLORS = {
   // Built-in categories
   Auto:           '#3b82f6', // blue

@@ -10,6 +10,7 @@ import {
   deleteTransaction,
   appendTransactions,
   deduplicateTransactions,
+  bulkPatchTransactions,
 } from '../utils/statementStore.js';
 import { clearInsightsCache } from '../utils/insightsCache.js';
 import { asyncHandler } from '../utils/requestHelpers.js';
@@ -55,6 +56,17 @@ router.put('/statements/:id', asyncHandler(async (req, res) => {
   await clearInsightsCache();
   const { transactions: _tx, ...meta } = updated;
   return res.json(meta);
+}));
+
+// Must be before /statements/:id to avoid route shadowing
+router.patch('/statements/bulk-recategorize', asyncHandler(async (req, res) => {
+  const { updates } = req.body;
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return res.status(400).json({ error: 'updates array is required.' });
+  }
+  const { updatedCount } = await bulkPatchTransactions(updates);
+  await clearInsightsCache();
+  return res.json({ ok: true, updatedCount });
 }));
 
 router.patch('/statements/:id', asyncHandler(async (req, res) => {
@@ -107,6 +119,7 @@ router.patch('/statements/:stmtId/transactions/:txId', asyncHandler(async (req, 
   }
   const tx = await patchTransaction(stmtId, txId, patch);
   if (!tx) return res.status(404).json({ error: 'Statement or transaction not found.' });
+  await clearInsightsCache();
   return res.json(tx);
 }));
 

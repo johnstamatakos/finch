@@ -1,11 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatCurrency, formatDate } from '../../utils/formatters.js';
 import './InsightsCard.css';
 
 const TYPE_ICON = {
-  warning:  '↑',
-  positive: '↓',
-  info:     '→',
+  duplicate:  '⚠',
+  suspicious: '⚑',
+  saving:     '✂',
+  warning:    '↑',
+  positive:   '↓',
+  info:       '→',
 };
+
+const GROUPS = [
+  { label: 'Needs Attention', types: new Set(['duplicate', 'suspicious', 'warning']) },
+  { label: 'Opportunities',   types: new Set(['saving']) },
+  { label: 'Observations',    types: new Set(['positive', 'info']) },
+];
 
 function formatTs(iso) {
   if (!iso) return '';
@@ -24,7 +34,6 @@ export default function InsightsCard({ statements }) {
 
   const stmtKey = statements.map((s) => s.id).sort().join(',');
 
-  // Only fetch when the card is first opened, or statements change while open
   useEffect(() => {
     if (!open || statements.length === 0) return;
     if (stmtKey === prevKeyRef.current && state === 'done') return;
@@ -56,7 +65,6 @@ export default function InsightsCard({ statements }) {
 
   return (
     <div className={`insights-card${open ? ' open' : ''}`}>
-      {/* Clickable header — toggles open/closed */}
       <button
         className="insights-header"
         onClick={() => setOpen((v) => !v)}
@@ -116,14 +124,38 @@ export default function InsightsCard({ statements }) {
           )}
 
           {state === 'done' && insights.length > 0 && (
-            <ul className="insights-list">
-              {insights.map((insight, i) => (
-                <li key={i} className={`insights-item insights-item-${insight.type}`}>
-                  <span className="insights-icon">{TYPE_ICON[insight.type] ?? '→'}</span>
-                  <span className="insights-msg">{insight.message}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="insights-groups">
+              {GROUPS.map(({ label, types }) => {
+                const items = insights.filter((ins) => types.has(ins.type));
+                if (items.length === 0) return null;
+                return (
+                  <div key={label} className="insights-group">
+                    <div className="insights-section-hd">{label}</div>
+                    <ul className="insights-list">
+                      {items.map((insight, i) => (
+                        <li key={i} className={`insights-item insights-item-${insight.type}`}>
+                          <span className="insights-icon">{TYPE_ICON[insight.type] ?? '→'}</span>
+                          <div className="insights-item-body">
+                            <span className="insights-msg">{insight.message}</span>
+                            {insight.transactions?.length > 0 && (
+                              <ul className="insights-tx-list">
+                                {insight.transactions.map((tx) => (
+                                  <li key={tx.id} className="insights-tx-row">
+                                    <span className="itx-date">{formatDate(tx.date)}</span>
+                                    <span className="itx-desc">{tx.description}</span>
+                                    <span className="itx-amt">−{formatCurrency(tx.amount)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

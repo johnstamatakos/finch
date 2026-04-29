@@ -40,7 +40,7 @@ Return ONLY a valid JSON array — no markdown, no explanation. Include the i fi
 [{"i":0,"category":"Restaurants","isRecurring":false,"confidence":"high"},...]`;
 }
 
-const BATCH_SIZE = 80; // safe ceiling for Haiku's 4096-token output limit
+const BATCH_SIZE = parseInt(process.env.AI_BATCH_SIZE || '80', 10); // reduce to ~20 for smaller local models
 
 export async function analyzeTransactions(transactions, customCategories = []) {
   const systemPrompt = buildSystemPrompt(customCategories);

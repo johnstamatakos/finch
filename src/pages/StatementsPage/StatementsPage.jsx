@@ -1,11 +1,6 @@
 import { useState } from 'react';
-import { formatCurrency } from '../../utils/formatters.js';
+import { formatCurrency, formatISODate } from '../../utils/formatters.js';
 import './StatementsPage.css';
-
-function formatSavedDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 export default function StatementsPage({ statements, onDelete, onRename, onUpload }) {
   const [editingId, setEditingId] = useState(null);
@@ -107,7 +102,7 @@ export default function StatementsPage({ statements, onDelete, onRename, onUploa
                 <td className="stmts-col-num stmts-txcount">
                   {s.summary?.transactionCount ?? 0}
                 </td>
-                <td className="stmts-saved">{formatSavedDate(s.savedAt)}</td>
+                <td className="stmts-saved">{formatISODate(s.savedAt)}</td>
                 <td className="stmts-actions">
                   <button
                     className="stmts-delete-btn"

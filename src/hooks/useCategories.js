@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CATEGORIES, CATEGORY_COLORS } from '../constants/categories.js';
-
-// Extra colors cycled for user-created categories
-const CUSTOM_PALETTE = [
-  '#0ea5e9', '#a855f7', '#14b8a6', '#f43f5e', '#84cc16',
-  '#fb923c', '#38bdf8', '#c084fc', '#34d399', '#fbbf24',
-];
+import { CATEGORIES, getCategoryColor } from '../constants/categories.js';
 
 export function useCategories() {
   const [customCategories, setCustomCategories] = useState([]);
@@ -45,6 +39,22 @@ export function useCategories() {
     }
   };
 
+  const renameCategory = async (oldName, newName) => {
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(oldName)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newName }),
+      });
+      if (!res.ok) return null;
+      const { name } = await res.json();
+      setCustomCategories((prev) => prev.map((c) => (c === oldName ? name : c)));
+      return name;
+    } catch {
+      return null;
+    }
+  };
+
   const removeCategory = async (name) => {
     try {
       const res = await fetch(`/api/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
@@ -56,12 +66,5 @@ export function useCategories() {
     }
   };
 
-  const getCategoryColor = (name) => {
-    if (CATEGORY_COLORS[name]) return CATEGORY_COLORS[name];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-    return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length];
-  };
-
-  return { allCategories, customCategories, addCategory, removeCategory, getCategoryColor };
+  return { allCategories, customCategories, addCategory, renameCategory, removeCategory, getCategoryColor };
 }

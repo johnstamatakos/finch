@@ -186,10 +186,33 @@
   border-radius: 9px;
   border: 1px solid transparent;
   font-size: 13px;
-  line-height: 1.45;
 }
 
-/* Type variants */
+/* ── Groups ──────────────────────────────────────────────────── */
+
+.insights-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.insights-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insights-section-hd {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  padding: 0 2px;
+}
+
+/* ── Type variants ───────────────────────────────────────────── */
+
 .insights-item-warning {
   background: rgba(251, 191, 36, 0.06);
   border-color: rgba(251, 191, 36, 0.15);
@@ -197,12 +220,33 @@
 .insights-item-warning .insights-icon { color: var(--warning); }
 .insights-item-warning .insights-msg  { color: var(--warning); }
 
+.insights-item-duplicate {
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+.insights-item-duplicate .insights-icon { color: var(--warning); }
+.insights-item-duplicate .insights-msg  { color: var(--warning); }
+
+.insights-item-suspicious {
+  background: rgba(248, 113, 113, 0.06);
+  border-color: rgba(248, 113, 113, 0.18);
+}
+.insights-item-suspicious .insights-icon { color: var(--negative); }
+.insights-item-suspicious .insights-msg  { color: var(--negative); }
+
 .insights-item-positive {
   background: rgba(52, 211, 153, 0.06);
   border-color: rgba(52, 211, 153, 0.15);
 }
 .insights-item-positive .insights-icon { color: var(--positive); }
 .insights-item-positive .insights-msg  { color: var(--positive); }
+
+.insights-item-saving {
+  background: rgba(52, 211, 153, 0.06);
+  border-color: rgba(52, 211, 153, 0.15);
+}
+.insights-item-saving .insights-icon { color: var(--positive); }
+.insights-item-saving .insights-msg  { color: var(--positive); }
 
 .insights-item-info {
   background: rgba(129, 140, 248, 0.06);
@@ -220,6 +264,56 @@
   text-align: center;
 }
 
-.insights-msg {
+.insights-item-body {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insights-msg {
+  line-height: 1.45;
+}
+
+/* ── Transaction sub-list (duplicate / suspicious) ───────────── */
+
+.insights-tx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insights-tx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.itx-date {
+  color: var(--text-3);
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 70px;
+}
+
+.itx-desc {
+  flex: 1;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itx-amt {
+  color: var(--negative);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }

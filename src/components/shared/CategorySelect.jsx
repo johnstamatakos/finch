@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import './CategorySelect.css';
 
-export default function CategorySelect({ value, categories, onChange, onCreateCategory }) {
+export default function CategorySelect({ value, categories, onChange, onCreateCategory, placeholder }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0, above: false });
@@ -107,7 +107,9 @@ export default function CategorySelect({ value, categories, onChange, onCreateCa
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="cat-trigger-label">{value}</span>
+        <span className={`cat-trigger-label${!value && placeholder ? ' cat-trigger-placeholder' : ''}`}>
+          {value || placeholder || ''}
+        </span>
         <span className="cat-chevron" aria-hidden>▾</span>
       </button>
 
