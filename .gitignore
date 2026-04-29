@@ -17,6 +17,11 @@ dist-ssr
 # Local statement data — never commit
 data/
 
+# SLM eval harness — local only
+server/ai/eval/
+server/ai/providers/
+server/utils/rulesAnalyzer.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
